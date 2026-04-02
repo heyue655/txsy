@@ -4,11 +4,15 @@
 FROM docker.das-security.cn/node:22-alpine AS frontend-build
 WORKDIR /frontend
 
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json ./
+# npm sometimes skips the musl optional dep for rolldown on Alpine (known npm bug).
+# Fix: run npm install, then explicitly install the matching musl native binding.
+RUN npm install && \
+    ROLLDOWN_VER=$(node -p "require('./node_modules/rolldown/package.json').version") && \
+    npm install --no-save "@rolldown/binding-linux-x64-musl@${ROLLDOWN_VER}"
 
 COPY . .
-# Skip tsc type-check in Docker (already validated locally); just bundle with Vite
+# Vite 6 warns about Node 22.6 but does NOT abort — the build still succeeds
 RUN npx vite build
 # output: /frontend/dist
 
