@@ -1,0 +1,33 @@
+# dependencies
+node_modules
+**/node_modules
+
+# build outputs
+dist
+**/dist
+server/dist
+
+# dev / OS junk
+.env
+.env.*
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+# vite cache / temp
+.vite
+src/.vite
+
+# git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Docker itself
+Dockerfile
+docker-compose*.yml
+.dockerignore

@@ -1,0 +1,45 @@
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: txsy-app:latest
+    container_name: txsy-app
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # MySQL 连接串 — 修改为你服务器上的实际地址
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+    # 如果数据库也在同一台服务器上可以加 depends_on
+    # depends_on:
+    #   - db
+    networks:
+      - txsy-net
+
+  # ── 可选：本地 MySQL（如果服务器上没有独立数据库）──
+  # db:
+  #   image: mysql:8.0
+  #   container_name: txsy-db
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+  #     MYSQL_DATABASE: txsy
+  #   volumes:
+  #     - db-data:/var/lib/mysql
+  #   ports:
+  #     - "3306:3306"
+  #   networks:
+  #     - txsy-net
+
+networks:
+  txsy-net:
+    driver: bridge
+
+# volumes:
+#   db-data:

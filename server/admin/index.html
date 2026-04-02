@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>太虚书院 · 后台管理</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0e1a; --bg2: #111827; --bg3: #1f2937;
+  --border: #374151; --text: #e5e7eb; --text2: #9ca3af;
+  --primary: #3b82f6; --primary2: #2563eb; --danger: #ef4444;
+  --success: #22c55e; --gold: #fbbf24;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+.layout { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; flex-shrink: 0; }
+.sidebar h1 { font-size: 18px; padding: 0 20px 20px; border-bottom: 1px solid var(--border); color: var(--gold); letter-spacing: 3px; }
+.sidebar nav { margin-top: 12px; }
+.sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 12px 20px; color: var(--text2); text-decoration: none; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+.sidebar nav a:hover, .sidebar nav a.active { background: var(--bg3); color: var(--text); border-left: 3px solid var(--primary); }
+.sidebar nav a .icon { font-size: 18px; width: 24px; text-align: center; }
+.main { flex: 1; padding: 30px; overflow-y: auto; }
+.main h2 { font-size: 22px; margin-bottom: 20px; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.btn { padding: 8px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary2); }
+.btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+.btn-danger:hover { background: var(--danger); color: #fff; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; background: var(--bg2); border-radius: 8px; overflow: hidden; }
+th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+th { background: var(--bg3); color: var(--text2); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+td { color: var(--text); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge-active { background: rgba(34,197,94,0.15); color: var(--success); }
+.badge-inactive { background: rgba(156,163,175,0.15); color: var(--text2); }
+.color-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: middle; margin-right: 6px; border: 1px solid rgba(255,255,255,0.1); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 560px; max-height: 80vh; overflow-y: auto; }
+.modal h3 { margin-bottom: 16px; font-size: 16px; color: var(--gold); }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; font-weight: 600; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; outline: none; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--primary); }
+.form-group textarea { min-height: 80px; resize: vertical; }
+.form-row { display: flex; gap: 12px; }
+.form-row .form-group { flex: 1; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.empty { text-align: center; padding: 50px; color: var(--text2); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+.stat-card .num { font-size: 28px; font-weight: 700; color: var(--primary); }
+.stat-card .label { font-size: 12px; color: var(--text2); margin-top: 4px; }
+.persona-badge { background: rgba(59,130,246,0.15); color: var(--primary); }
+.actions { display: flex; gap: 6px; }
+.switch { position: relative; width: 36px; height: 20px; display: inline-block; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider { position: absolute; inset: 0; background: var(--bg3); border-radius: 10px; cursor: pointer; transition: 0.3s; border: 1px solid var(--border); }
+.switch .slider:before { content: ''; position: absolute; width: 14px; height: 14px; left: 2px; top: 2px; background: var(--text2); border-radius: 50%; transition: 0.3s; }
+.switch input:checked + .slider { background: var(--primary); border-color: var(--primary); }
+.switch input:checked + .slider:before { transform: translateX(16px); background: #fff; }
+.toast { position: fixed; top: 20px; right: 20px; padding: 12px 24px; border-radius: 8px; font-size: 13px; z-index: 2000; animation: slideIn 0.3s; max-width: 500px; word-break: break-all; }
+.toast-success { background: var(--success); color: #fff; }
+.toast-error { background: var(--danger); color: #fff; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="sidebar">
+    <h1>🌌 太虚书院</h1>
+    <nav>
+      <a class="active" data-page="dashboard"><span class="icon">📊</span>数据概览</a>
+      <a data-page="books"><span class="icon">📚</span>书籍管理</a>
+      <a data-page="llm"><span class="icon">🤖</span>大模型配置</a>
+      <a data-page="dean"><span class="icon">📜</span>院长配置</a>
+    </nav>
+  </div>
+  <div class="main" id="content"></div>
+</div>
+
+<script>
+const API = window.location.origin + '/api';
+let currentPage = 'dashboard';
+let booksCache = [];
+let llmCache = [];
+
+// 导航
+document.querySelectorAll('.sidebar nav a').forEach(a => {
+  a.addEventListener('click', () => {
+    document.querySelectorAll('.sidebar nav a').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    currentPage = a.dataset.page;
+    render();
+  });
+});
+
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  return res.json();
+}
+
+// ---- 渲染入口 ----
+async function render() {
+  const c = document.getElementById('content');
+  if (currentPage === 'dashboard') await renderDashboard(c);
+  else if (currentPage === 'books') await renderBooks(c);
+  else if (currentPage === 'llm') await renderLLM(c);
+  else if (currentPage === 'dean') await renderDean(c);
+}
+
+// ---- Dashboard ----
+async function renderDashboard(c) {
+  const [booksRes, llmRes] = await Promise.all([api('/books'), api('/llm')]);
+  booksCache = booksRes.data || [];
+  llmCache = llmRes.data || [];
+  const personaCount = booksCache.filter(b => b.persona).length;
+  const activeLlm = llmCache.find(l => l.isActive);
+  c.innerHTML = `
+    <h2>📊 数据概览</h2>
+    <div class="stats">
+      <div class="stat-card"><div class="num">${booksCache.length}</div><div class="label">书籍总数</div></div>
+      <div class="stat-card"><div class="num">${personaCount} / ${booksCache.length}</div><div class="label">灵魂已配置</div></div>
+      <div class="stat-card"><div class="num">${activeLlm ? '✅ 已启用' : '❌ 未配置'}</div><div class="label">大模型状态</div></div>
+    </div>
+    <h2 style="font-size:16px;margin-top:20px;">📚 最近书籍</h2>
+    <table>
+      <tr><th>书名</th><th>作者</th><th>年代</th><th>灵魂色</th><th>档案</th></tr>
+      ${booksCache.slice(0, 10).map(b => `
+        <tr>
+          <td>${b.title}</td><td>${b.author}</td><td>${b.era}</td>
+          <td><span class="color-dot" style="background:${b.soulColor}"></span>${b.soulColor}</td>
+          <td><span class="badge ${b.persona ? 'badge-active' : 'badge-inactive'}">${b.persona ? '已配置' : '未配置'}</span></td>
+        </tr>
+      `).join('')}
+    </table>
+  `;
+}
+
+// ---- 书籍管理 ----
+async function renderBooks(c) {
+  const res = await api('/books');
+  booksCache = res.data || [];
+  c.innerHTML = `
+    <h2>📚 书籍管理</h2>
+    <div class="toolbar">
+      <span style="color:var(--text2);font-size:13px;">共 ${booksCache.length} 本</span>
+      <button class="btn btn-primary" onclick="showBookForm()">+ 添加书籍</button>
+    </div>
+    <table>
+      <tr><th>#</th><th>书名</th><th>作者</th><th>年代</th><th>灵魂色</th><th>灵魂档案</th><th>状态</th><th>操作</th></tr>
+      ${booksCache.map(b => `
+        <tr>
+          <td>${b.id}</td>
+          <td><strong>${b.title}</strong></td>
+          <td>${b.author}</td>
+          <td>${b.era}</td>
+          <td><span class="color-dot" style="background:${b.soulColor}"></span>${b.soulColor}</td>
+          <td><span class="badge ${b.persona ? 'badge-active' : 'badge-inactive'}">${b.persona ? '✅ 已配置' : '⚠️ 未配置'}</span></td>
+          <td><span class="badge ${b.isActive ? 'badge-active' : 'badge-inactive'}">${b.isActive ? '启用' : '停用'}</span></td>
+          <td class="actions">
+            <button class="btn btn-primary btn-sm" onclick="showBookForm(${b.id})">编辑</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteBook(${b.id})">删除</button>
+          </td>
+        </tr>
+      `).join('')}
+    </table>
+  `;
+}
+
+window.showBookForm = async function(id) {
+  const book = id ? booksCache.find(b => b.id === id) : null;
+  const p = book?.persona;
+  let coreViews = '';
+  if (p?.coreViews) {
+    try { coreViews = JSON.parse(p.coreViews).join('\n'); } catch { coreViews = p.coreViews; }
+  }
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="width:640px;max-height:90vh;">
+      <h3>${book ? '编辑书籍' : '添加书籍'}</h3>
+
+      <div style="border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:14px;font-size:12px;color:var(--gold);letter-spacing:2px;">📚 基本信息</div>
+      <div class="form-row">
+        <div class="form-group"><label>书名</label><input id="f-title" value="${book?.title || ''}"></div>
+        <div class="form-group"><label>作者</label><input id="f-author" value="${book?.author || ''}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>年代</label><input id="f-era" value="${book?.era || ''}"></div>
+        <div class="form-group"><label>灵魂色</label><input type="color" id="f-soulColor" value="${book?.soulColor || '#ffd700'}" style="height:36px;padding:2px;"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>排序</label><input type="number" id="f-sortOrder" value="${book?.sortOrder ?? 0}"></div>
+        <div class="form-group"><label>状态</label><select id="f-isActive"><option value="true" ${book?.isActive !== false ? 'selected' : ''}>启用</option><option value="false" ${book?.isActive === false ? 'selected' : ''}>停用</option></select></div>
+      </div>
+      <div class="form-group"><label>简介</label><textarea id="f-desc" rows="2">${book?.description || ''}</textarea></div>
+
+      <div style="border-bottom:1px solid var(--border);padding-bottom:4px;margin:18px 0 14px;font-size:12px;color:var(--gold);letter-spacing:2px;display:flex;justify-content:space-between;align-items:center;">
+        <span>👻 灵魂档案（与此书绑定）</span>
+        ${book ? '<button class="btn btn-sm" id="btn-ai-generate" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:11px;padding:4px 14px;border-radius:14px;letter-spacing:1px;">🤖 AI自动生成</button>' : '<span style="font-size:11px;color:var(--text2);">(保存书籍后可使用AI生成)</span>'}
+      </div>
+      <div id="persona-loading" style="display:none;text-align:center;padding:20px;color:var(--primary);font-size:13px;">
+        <div style="display:inline-block;width:18px;height:18px;border:2px solid var(--primary);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></div>
+        AI 正在生成灵魂档案，请稍候…
+      </div>
+      <div id="persona-fields">
+      <div class="form-group"><label>身份设定</label><textarea id="p-identity" rows="2" placeholder="如：我是老子，道家学派创始人…">${p?.identity || ''}</textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>专业领域</label><input id="p-profession" value="${p?.profession || ''}" placeholder="如：哲学、政治、军事…"></div>
+        <div class="form-group"><label>社会地位</label><input id="p-socialStatus" value="${p?.socialStatus || ''}" placeholder="如：周朝守藏室之史…"></div>
+      </div>
+      <div class="form-group"><label>性格特征</label><textarea id="p-personality" rows="2" placeholder="如：温和先知，善用比喻和反论…">${p?.personality || ''}</textarea></div>
+      <div class="form-group"><label>核心观点（每行一条）</label><textarea id="p-coreViews" rows="3" placeholder="道生一，一生二\n上善若水">${coreViews}</textarea></div>
+      <div class="form-group"><label>逻辑武器</label><textarea id="p-logicWeapons" rows="2" placeholder="如：善用悖论、以水喻道、正言若反…">${p?.logicWeapons || ''}</textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>交流风格</label><input id="p-communicationStyle" value="${p?.communicationStyle || ''}" placeholder="如：循循善诱，先问后答…"></div>
+        <div class="form-group"><label>口头禅</label><input id="p-catchphrases" value="${p?.catchphrases || ''}" placeholder="如：道可道，非常道；无为而治"></div>
+      </div>
+      <div class="form-group"><label>情绪态度（喜好/厌恶）</label><textarea id="p-emotions" rows="2" placeholder="如：喜好自然质朴，厌恶矫饰浮华…">${p?.emotions || ''}</textarea></div>
+      <div class="form-group"><label>知识边界</label><textarea id="p-limits" rows="2" placeholder="只聊道家思想，不知道现代科技…">${p?.knowledgeLimits || ''}</textarea></div>
+      <div class="form-group"><label>说话风格</label><textarea id="p-style" rows="2" placeholder="文言文风格，多用'之乎者也'…">${p?.speakingStyle || ''}</textarea></div>
+      <div class="form-group"><label>开场白（每行一条，随机选取）</label><textarea id="p-opening" rows="3" placeholder="第一条开场白…\n第二条开场白…\n第三条开场白…">${p?.openingQuestion || ''}</textarea></div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn" onclick="this.closest('.modal-overlay').remove()" style="background:var(--bg3);color:var(--text)">取消</button>
+        <button class="btn btn-primary" id="btn-save-book">保存</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  // AI 自动生成
+  const aiBtn = document.getElementById('btn-ai-generate');
+  if (aiBtn && book) {
+    aiBtn.onclick = async () => {
+      aiBtn.disabled = true;
+      aiBtn.textContent = '⏳ 生成中…';
+      document.getElementById('persona-loading').style.display = 'block';
+      try {
+        const res = await api('/persona/' + book.id + '/auto-generate', { method: 'POST' });
+        if (res.code !== 0) throw new Error(res.message);
+        const d = res.data;
+        document.getElementById('p-identity').value = d.identity || '';
+        document.getElementById('p-profession').value = d.profession || '';
+        document.getElementById('p-socialStatus').value = d.socialStatus || '';
+        document.getElementById('p-personality').value = d.personality || '';
+        document.getElementById('p-coreViews').value = (Array.isArray(d.coreViews) ? d.coreViews.join('\n') : d.coreViews) || '';
+        document.getElementById('p-logicWeapons').value = d.logicWeapons || '';
+        document.getElementById('p-communicationStyle').value = d.communicationStyle || '';
+        document.getElementById('p-catchphrases').value = d.catchphrases || '';
+        document.getElementById('p-emotions').value = d.emotions || '';
+        document.getElementById('p-limits').value = d.knowledgeLimits || '';
+        document.getElementById('p-style').value = d.speakingStyle || '';
+        document.getElementById('p-opening').value = d.openingQuestion || '';
+        toast('✨ AI生成完成！请检查内容后保存', 'success');
+      } catch (e) {
+        toast('❌ 生成失败: ' + e.message, 'error');
+      } finally {
+        aiBtn.disabled = false;
+        aiBtn.textContent = '🤖 AI自动生成';
+        document.getElementById('persona-loading').style.display = 'none';
+      }
+    };
+  }
+
+  document.getElementById('btn-save-book').onclick = async () => {
+    const data = {
+      title: document.getElementById('f-title').value,
+      author: document.getElementById('f-author').value,
+      era: document.getElementById('f-era').value,
+      soulColor: document.getElementById('f-soulColor').value,
+      sortOrder: parseInt(document.getElementById('f-sortOrder').value) || 0,
+      isActive: document.getElementById('f-isActive').value === 'true',
+      description: document.getElementById('f-desc').value || null,
+    };
+    let bookId = book?.id;
+    if (book) {
+      await api('/books/' + book.id, { method: 'PUT', body: data });
+    } else {
+      const res = await api('/books', { method: 'POST', body: data });
+      bookId = res.data?.id;
+    }
+
+    // 同时保存灵魂档案
+    const identity = document.getElementById('p-identity').value;
+    const personality = document.getElementById('p-personality').value;
+    const coreViewsRaw = document.getElementById('p-coreViews').value;
+    const knowledgeLimits = document.getElementById('p-limits').value;
+    const speakingStyle = document.getElementById('p-style').value;
+    const openingQuestion = document.getElementById('p-opening').value;
+    const profession = document.getElementById('p-profession').value;
+    const socialStatus = document.getElementById('p-socialStatus').value;
+    const logicWeapons = document.getElementById('p-logicWeapons').value;
+    const communicationStyle = document.getElementById('p-communicationStyle').value;
+    const catchphrases = document.getElementById('p-catchphrases').value;
+    const emotions = document.getElementById('p-emotions').value;
+    const hasPersona = identity || personality || coreViewsRaw || knowledgeLimits || speakingStyle || openingQuestion || profession || socialStatus || logicWeapons || communicationStyle || catchphrases || emotions;
+    if (bookId && hasPersona) {
+      const views = coreViewsRaw.split('\n').filter(v => v.trim());
+      await api('/persona/' + bookId, { method: 'POST', body: {
+        identity, personality, coreViews: views, knowledgeLimits, speakingStyle, openingQuestion,
+        profession, socialStatus, logicWeapons, communicationStyle, catchphrases, emotions,
+      }});
+    }
+
+    toast(book ? '书籍已更新' : '书籍已添加');
+    overlay.remove();
+    renderBooks(document.getElementById('content'));
+  };
+};
+
+window.deleteBook = async function(id) {
+  if (!confirm('确定删除此书籍？关联的灵魂档案也会一并删除。')) return;
+  await api('/books/' + id, { method: 'DELETE' });
+  toast('已删除');
+  renderBooks(document.getElementById('content'));
+};
+
+// ---- 大模型配置 ----
+async function renderLLM(c) {
+  const res = await api('/llm');
+  llmCache = res.data || [];
+  c.innerHTML = `
+    <h2>🤖 大模型配置</h2>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:16px;">配置后将用于生成作者角色对话，同一时间只能激活一个配置</p>
+    <div class="toolbar">
+      <span style="color:var(--text2);font-size:13px;">共 ${llmCache.length} 个配置</span>
+      <button class="btn btn-primary" onclick="showLLMForm()">+ 添加配置</button>
+    </div>
+    <table>
+      <tr><th>名称</th><th>服务商</th><th>模型</th><th>温度</th><th>MaxTokens</th><th>状态</th><th>操作</th></tr>
+      ${llmCache.map(l => `
+        <tr>
+          <td><strong>${l.name}</strong></td>
+          <td>${l.provider}</td>
+          <td><code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-size:12px;">${l.model}</code></td>
+          <td>${l.temperature}</td>
+          <td>${l.maxTokens}</td>
+          <td><span class="badge ${l.isActive ? 'badge-active' : 'badge-inactive'}">${l.isActive ? '✅ 激活' : '未激活'}</span></td>
+          <td class="actions">
+            <button class="btn btn-primary btn-sm" onclick="testLLM(${l.id})" style="background:var(--success);margin-right:2px;">测试</button>
+            <button class="btn btn-primary btn-sm" onclick="showLLMForm(${l.id})">编辑</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteLLM(${l.id})">删除</button>
+          </td>
+        </tr>
+      `).join('')}
+    </table>
+  `;
+}
+
+window.showLLMForm = async function(id) {
+  const llm = id ? llmCache.find(l => l.id === id) : null;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>${llm ? '编辑配置' : '添加大模型配置'}</h3>
+      <div class="form-row">
+        <div class="form-group"><label>配置名称</label><input id="l-name" value="${llm?.name || ''}" placeholder="如: DeepSeek生产环境"></div>
+        <div class="form-group"><label>服务商</label>
+          <select id="l-provider">
+            <option value="openai" ${llm?.provider === 'openai' ? 'selected' : ''}>OpenAI</option>
+            <option value="deepseek" ${llm?.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option>
+            <option value="qwen" ${llm?.provider === 'qwen' ? 'selected' : ''}>通义千问</option>
+            <option value="zhipu" ${llm?.provider === 'zhipu' ? 'selected' : ''}>智谱 GLM</option>
+            <option value="moonshot" ${llm?.provider === 'moonshot' ? 'selected' : ''}>Moonshot</option>
+            <option value="custom" ${llm?.provider === 'custom' ? 'selected' : ''}>自定义</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>API Endpoint</label><input id="l-endpoint" value="${llm?.endpoint || ''}" placeholder="https://api.openai.com/v1/chat/completions"></div>
+      <div class="form-group"><label>API Key ${llm ? '(留空不修改)' : ''}</label><input id="l-apiKey" type="password" value="" placeholder="${llm ? '******' : '请输入 API Key'}"></div>
+      <div class="form-row">
+        <div class="form-group"><label>模型名称</label><input id="l-model" value="${llm?.model || 'gpt-4o-mini'}" placeholder="gpt-4o-mini"></div>
+        <div class="form-group"><label>Temperature</label><input type="number" step="0.1" min="0" max="2" id="l-temp" value="${llm?.temperature ?? 0.7}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>MaxTokens</label><input type="number" id="l-maxTokens" value="${llm?.maxTokens ?? 2048}"></div>
+        <div class="form-group"><label>激活此配置</label>
+          <div style="margin-top:6px;"><label class="switch"><input type="checkbox" id="l-active" ${llm?.isActive ? 'checked' : ''}><span class="slider"></span></label></div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn" onclick="this.closest('.modal-overlay').remove()" style="background:var(--bg3);color:var(--text)">取消</button>
+        <button class="btn btn-primary" id="btn-save-llm">保存</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  document.getElementById('btn-save-llm').onclick = async () => {
+    const data = {
+      name: document.getElementById('l-name').value,
+      provider: document.getElementById('l-provider').value,
+      endpoint: document.getElementById('l-endpoint').value,
+      apiKey: document.getElementById('l-apiKey').value || undefined,
+      model: document.getElementById('l-model').value,
+      temperature: parseFloat(document.getElementById('l-temp').value) || 0.7,
+      maxTokens: parseInt(document.getElementById('l-maxTokens').value) || 2048,
+      isActive: document.getElementById('l-active').checked,
+    };
+    if (!data.apiKey && !llm) { toast('请输入 API Key', 'error'); return; }
+    if (llm) {
+      await api('/llm/' + llm.id, { method: 'PUT', body: data });
+      toast('配置已更新');
+    } else {
+      await api('/llm', { method: 'POST', body: data });
+      toast('配置已添加');
+    }
+    overlay.remove();
+    renderLLM(document.getElementById('content'));
+  };
+};
+
+window.testLLM = async function(id) {
+  toast('正在测试连通性…', 'success');
+  try {
+    const res = await api('/llm/' + id + '/test', { method: 'POST' });
+    if (res.code === 0) {
+      toast(`✅ 连通成功！延迟 ${res.latency}ms，模型: ${res.model}，回复: ${res.reply}`, 'success');
+    } else {
+      toast(`❌ 测试失败: ${res.message}${res.latency ? ' (' + res.latency + 'ms)' : ''}`, 'error');
+    }
+  } catch (e) {
+    toast('❌ 测试请求失败: ' + e.message, 'error');
+  }
+};
+
+window.deleteLLM = async function(id) {
+  if (!confirm('确定删除此配置？')) return;
+  await api('/llm/' + id, { method: 'DELETE' });
+  toast('已删除');
+  renderLLM(document.getElementById('content'));
+};
+
+// ---- 院长配置 ----
+async function renderDean(c) {
+  const res = await api('/dean');
+  const dean = res.data || {};
+  c.innerHTML = `
+    <h2>📜 院长配置</h2>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:20px;">配置太虚院长的身份档案，影响召唤院长对话中的角色表现</p>
+    <form id="dean-form" style="max-width:700px;">
+      <div class="form-row">
+        <div class="form-group">
+          <label>院长姓名</label>
+          <input id="d-name" value="${dean.name || '太虚院长'}" placeholder="太虚院长">
+        </div>
+        <div class="form-group">
+          <label>头衔</label>
+          <input id="d-title" value="${dean.title || '太虚书院·院长'}" placeholder="太虚书院·院长">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>灵魂颜色</label>
+          <input id="d-color" value="${dean.soulColor || '#c8a96e'}" placeholder="#c8a96e" style="font-family:monospace;">
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:2px;">
+          <div id="d-color-preview" style="width:44px;height:36px;border-radius:8px;background:${dean.soulColor || '#c8a96e'};border:1px solid rgba(255,255,255,0.2);"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>身份简介</label>
+        <textarea id="d-identity" rows="2" placeholder="院长的身份描述...">${dean.identity || ''}</textarea>
+      </div>
+      <div class="form-group">
+        <label>性格特征</label>
+        <textarea id="d-personality" rows="2" placeholder="院长的性格特征...">${dean.personality || ''}</textarea>
+      </div>
+      <div class="form-group">
+        <label>核心理念 <span style="color:var(--text2);font-size:11px;">（每行一条，JSON 数组形式）</span></label>
+        <textarea id="d-views" rows="4" placeholder='["博览群书，融会贯通","学问在于探索，不在于记诵"]'>${typeof dean.coreViews === 'string' ? dean.coreViews : JSON.stringify(dean.coreViews || [], null, 2)}</textarea>
+      </div>
+      <div class="form-group">
+        <label>说话风格</label>
+        <textarea id="d-style" rows="2" placeholder="院长的说话风格...">${dean.speakingStyle || ''}</textarea>
+      </div>
+      <div class="form-group">
+        <label>开场问句 <span style="color:var(--text2);font-size:11px;">（多个用换行分隔，每次随机选一条）</span></label>
+        <textarea id="d-opening" rows="3" placeholder="太虚书院欢迎你。你今日踏入此院，所求何事？">${dean.openingQuestion || ''}</textarea>
+      </div>
+      <div class="form-actions" style="margin-top:20px;">
+        <button type="button" class="btn btn-primary" onclick="saveDean()">保存院长配置</button>
+      </div>
+    </form>
+  `;
+  document.getElementById('d-color').addEventListener('input', e => {
+    document.getElementById('d-color-preview').style.background = e.target.value;
+  });
+}
+
+window.saveDean = async function() {
+  const coreViewsRaw = document.getElementById('d-views').value.trim();
+  let coreViews = coreViewsRaw;
+  // Validate JSON if it looks like JSON
+  if (coreViewsRaw.startsWith('[')) {
+    try { JSON.parse(coreViewsRaw); } catch(e) { toast('核心理念格式不正确，请检查 JSON 格式', 'error'); return; }
+  }
+  const data = {
+    name: document.getElementById('d-name').value,
+    title: document.getElementById('d-title').value,
+    identity: document.getElementById('d-identity').value,
+    personality: document.getElementById('d-personality').value,
+    coreViews,
+    speakingStyle: document.getElementById('d-style').value,
+    openingQuestion: document.getElementById('d-opening').value,
+    soulColor: document.getElementById('d-color').value,
+  };
+  const res = await api('/dean', { method: 'PUT', body: data });
+  if (res.code === 0) {
+    toast('院长配置已保存 ✦');
+  } else {
+    toast('保存失败: ' + res.message, 'error');
+  }
+};
+
+// 启动
+render();
+</script>
+</body>
+</html>

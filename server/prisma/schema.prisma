@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// 书籍表
+model Book {
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(100)
+  author      String   @db.VarChar(50)
+  era         String   @db.VarChar(50)
+  soulColor   String   @db.VarChar(20) @default("#ffd700")
+  color       String   @db.VarChar(20) @default("#fff4d1")
+  description String?  @db.Text
+  categories  String   @db.VarChar(200) @default("") /// JSON array of category tags e.g. ["古籍","文学"]
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  persona AuthorPersona?
+
+  @@map("books")
+}
+
+/// 作者灵魂档案
+model AuthorPersona {
+  id              Int    @id @default(autoincrement())
+  bookId          Int    @unique
+  identity        String @db.Text        /// 身份设定
+  personality     String @db.Text        /// 性格特征
+  coreViews       String @db.Text        /// JSON array - 核心观点
+  knowledgeLimits String @db.Text        /// 知识边界
+  speakingStyle   String @db.Text        /// 说话风格
+  openingQuestion String @db.Text        /// 开场问题
+  profession      String @db.Text @default("") /// 专业领域
+  socialStatus    String @db.Text @default("") /// 社会地位
+  logicWeapons    String @db.Text @default("") /// 逻辑武器
+  communicationStyle String @db.Text @default("") /// 交流风格
+  catchphrases    String @db.Text @default("") /// 口头禅
+  emotions        String @db.Text @default("") /// 情绪态度（喜好/厌恶）
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@map("author_personas")
+}
+
+/// 大模型配置
+model LLMConfig {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(50)
+  provider    String   @db.VarChar(50)  /// openai / deepseek / qwen / custom
+  endpoint    String   @db.VarChar(500)
+  apiKey      String   @db.VarChar(500)
+  model       String   @db.VarChar(100)
+  temperature Float    @default(0.7)
+  maxTokens   Int      @default(2048)
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("llm_configs")
+}
+
+/// 聊天记录
+model ChatMessage {
+  id              Int      @id @default(autoincrement())
+  sessionId       String   @db.VarChar(100) /// 会话标识：bookTitle（书名去书名号）
+  conversationId  String?  @db.VarChar(50)  /// 一次对话会话的唯一ID，用于区分同一书籍的多次对话
+  userId          String?  @db.VarChar(100) /// 预留：用户ID（认证体系接入后使用）
+  role            String   @db.VarChar(20)  /// user / author / guest
+  speakerName     String?  @db.VarChar(100) /// guest角色时：访客作者姓名
+  guestBookTitle  String?  @db.VarChar(100) /// guest角色时：访客书名
+  content         String   @db.Text
+  createdAt       DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([conversationId])
+  @@map("chat_messages")
+}
+
+/// 太虚笔谈 - 知识笔记
+model NoteEntry {
+  id             Int      @id @default(autoincrement())
+  sessionId      String   @db.VarChar(100) /// 对应的会话（书名）
+  conversationId String?  @db.VarChar(50)  /// 关联的对话会话ID，用于确定笔谈取自哪次对话
+  bookTitle      String   @db.VarChar(100) /// 书名
+  summary        String   @db.Text         /// LLM 生成的笔谈内容
+  score          Int      @default(3)      /// 1~5 分，表现评分
+  highlights     String?  @db.Text         /// JSON：精彩发言摘录，用于生成分享图
+  userId         String?  @db.VarChar(100) /// 用户ID或访客指纹，用于统计
+  createdAt      DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([conversationId])
+  @@map("note_entries")
+}
+
+/// 注册用户
+model User {
+  id         Int      @id @default(autoincrement())
+  username   String   @unique @db.VarChar(50)
+  password   String   @db.VarChar(100)   /// bcrypt hash
+  nickname   String?  @db.VarChar(50)
+  inviteCode String?  @unique @db.VarChar(16)  /// 专属邀请码（注册时自动生成）
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("users")
+}
+
+/// 邀请记录：记录谁邀请了谁访问
+model Invitation {
+  id          Int      @id @default(autoincrement())
+  inviterCode String   @db.VarChar(16)   /// 邀请人的 inviteCode
+  fingerprint String?  @db.VarChar(100)  /// 点击时的访客指纹
+  inviteeId   Int?                        /// 成功注册后填入的被邀请人 ID
+  createdAt   DateTime @default(now())
+
+  @@index([inviterCode])
+  @@map("invitations")
+}
+
+/// 应用配置（key-value）
+model AppConfig {
+  id    Int    @id @default(autoincrement())
+  key   String @unique @db.VarChar(50)
+  value String @db.VarChar(500)
+
+  @@map("app_configs")
+}
+
+/// 院长配置
+model DeanConfig {
+  id              Int    @id @default(autoincrement())
+  name            String @db.VarChar(50)  @default("太虚院长")
+  title           String @db.VarChar(100) @default("太虚书院·院长")
+  identity        String @db.Text
+  personality     String @db.Text
+  coreViews       String @db.Text
+  speakingStyle   String @db.Text
+  openingQuestion String @db.Text
+  soulColor       String @db.VarChar(20)  @default("#c8a96e")
+  isActive        Boolean @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("dean_configs")
+}
