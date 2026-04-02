@@ -24,7 +24,16 @@ function generateBookPos(index: number): THREE.Vector3 {
 // 每本书随机选一个书籍 emoji
 const BOOK_EMOJIS = ['📖','📚','📕','📗','📘','📙','📜','🗞️','📃','📄'];
 
-const FlyingBook = ({ data, onSoulDialog, onDismiss, isFocused, pausedBookId, onPause, slotIndex, onRecycle }) => {
+const FlyingBook = ({ data, onSoulDialog, onDismiss, isFocused, pausedBookId, onPause, slotIndex, onRecycle }: {
+  data: { id: string; title: string; author: string; era: string; soulColor: string; pos: THREE.Vector3; color: string };
+  onSoulDialog: (book: any) => void;
+  onDismiss: () => void;
+  isFocused: boolean;
+  pausedBookId: string | null;
+  onPause: (id: string | null) => void;
+  slotIndex: number;
+  onRecycle: (id: string) => void;
+}) => {
   const ref = useRef<THREE.Group>(null);
   const labelRef = useRef<THREE.Group>(null);
   const emojiRef = useRef<any>(null);

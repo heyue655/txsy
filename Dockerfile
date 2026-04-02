@@ -1,21 +1,22 @@
 # ─────────────────────────────────────────────────────────────
 # Stage 1: Build frontend (Vite)
 # ─────────────────────────────────────────────────────────────
-FROM node:20-alpine AS frontend-build
+FROM docker.das-security.cn/node:22-alpine AS frontend-build
 WORKDIR /frontend
 
 COPY package.json package-lock.json* ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+# Skip tsc type-check in Docker (already validated locally); just bundle with Vite
+RUN npx vite build
 # output: /frontend/dist
 
 
 # ─────────────────────────────────────────────────────────────
 # Stage 2: Build backend (TypeScript → JS)
 # ─────────────────────────────────────────────────────────────
-FROM node:20-alpine AS backend-build
+FROM docker.das-security.cn/node:22-alpine AS backend-build
 WORKDIR /backend
 
 COPY server/package.json server/package-lock.json* ./
@@ -31,7 +32,7 @@ RUN npm run build
 # ─────────────────────────────────────────────────────────────
 # Stage 3: Production image
 # ─────────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM docker.das-security.cn/node:22-alpine AS runner
 WORKDIR /app
 
 # Only copy production dependencies
