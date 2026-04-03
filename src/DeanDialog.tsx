@@ -20,6 +20,7 @@ interface DeanData {
 
 interface Props {
   onClose: () => void;
+  userId?: string;
 }
 
 interface SessionInfo {
@@ -28,12 +29,11 @@ interface SessionInfo {
   msgCount: number;
 }
 
-const SESSION_ID = '__dean__';
 const SOUL_COLOR = '#c8a96e';
 
-async function loadChatHistory(): Promise<Message[]> {
+async function loadChatHistory(sessionId: string): Promise<Message[]> {
   try {
-    const res = await fetch(`/api/h5/chat-history/${encodeURIComponent(SESSION_ID)}`);
+    const res = await fetch(`/api/h5/chat-history/${encodeURIComponent(sessionId)}`);
     const json = await res.json();
     if (json.code !== 0 || !json.data) return [];
     return json.data.map((m: any) => ({
@@ -47,16 +47,18 @@ async function loadChatHistory(): Promise<Message[]> {
   }
 }
 
-async function saveMessage(role: string, content: string) {
+async function saveMessage(sessionId: string, role: string, content: string, userId?: string) {
   fetch('/api/h5/chat-history', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId: SESSION_ID, role, content }),
+    body: JSON.stringify({ sessionId, role, content, userId: userId || null }),
   }).catch(() => {});
 }
 
-const DeanDialog: React.FC<Props> = ({ onClose }) => {
+const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
   const sc = SOUL_COLOR;
+  // Each user gets their own dean session; guests share __dean__
+  const SESSION_ID = userId ? `__dean__${userId}` : '__dean__';
   const [dean, setDean] = useState<DeanData | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -95,7 +97,7 @@ const DeanDialog: React.FC<Props> = ({ onClose }) => {
     (async () => {
       const [deanRes, history] = await Promise.all([
         fetch('/api/h5/dean').then(r => r.json()).catch(() => ({ code: 1 })),
-        loadChatHistory(),
+        loadChatHistory(SESSION_ID),
       ]);
 
       let deanData: DeanData | null = null;
@@ -182,7 +184,7 @@ const DeanDialog: React.FC<Props> = ({ onClose }) => {
         setMessages(prev =>
           prev.map(m => m.id === msgId ? { ...m, isTyping: false } : m)
         );
-        if (finalFull) saveMessage('assistant', finalFull);
+        if (finalFull) saveMessage(SESSION_ID, 'assistant', finalFull, userId);
       } else {
         const data = await resp.json();
         if (data.code !== 0) throw new Error(data.message || '对话服务异常');
@@ -190,7 +192,7 @@ const DeanDialog: React.FC<Props> = ({ onClose }) => {
         setMessages(prev =>
           prev.map(m => m.id === msgId ? { ...m, content, isTyping: false } : m)
         );
-        if (content) saveMessage('assistant', content);
+        if (content) saveMessage(SESSION_ID, 'assistant', content, userId);
       }
     } catch (e: any) {
       if (e.name === 'AbortError') return;
@@ -218,9 +220,9 @@ const DeanDialog: React.FC<Props> = ({ onClose }) => {
     if (!hasSavedOpeningRef.current) {
       hasSavedOpeningRef.current = true;
       const opening = messages.find(m => m.role === 'dean');
-      if (opening) saveMessage('assistant', opening.content);
+      if (opening) saveMessage(SESSION_ID, 'assistant', opening.content, userId);
     }
-    saveMessage('user', text);
+    saveMessage(SESSION_ID, 'user', text, userId);
 
     // 若有引用上下文，拼入 LLM 消息（不影响展示）
     const effectiveContent = quotedRef ? `${quotedRef.context}\n\n${text}` : text;
@@ -253,7 +255,7 @@ const DeanDialog: React.FC<Props> = ({ onClose }) => {
         setShowAtPicker(true);
         if (!sessionsLoaded) {
           setPickerLoading(true);
-          fetch('/api/h5/chat-sessions')
+          fetch(`/api/h5/chat-sessions${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`)
             .then(r => r.json())
             .then(j => { if (j.code === 0) setSessions(j.data || []); setSessionsLoaded(true); })
             .catch(() => {})

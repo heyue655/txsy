@@ -88,7 +88,7 @@ const LoginModal: React.FC<Props> = ({ onSuccess, onClose, isLimitReached }) => 
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, zIndex: 9500,
+        position: 'fixed', inset: 0, zIndex: 11000,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'rgba(0,2,10,0.78)',
         backdropFilter: 'blur(8px)',

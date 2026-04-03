@@ -2518,7 +2518,7 @@ export default function App() {
       )}
 
       {/* 院长对话界面 */}
-      {showDean && <DeanDialog onClose={() => setShowDean(false)} />}
+      {showDean && <DeanDialog onClose={() => setShowDean(false)} userId={currentUserId ?? undefined} />}
 
       {/* ===== 登录/注册弹窗 ===== */}
       {showLoginModal && (
