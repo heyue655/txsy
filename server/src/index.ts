@@ -261,24 +261,41 @@ app.post('/api/h5/chat-history', async (req, res) => {
 app.get('/api/h5/chat-history/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { conversationId } = req.query as { conversationId?: string };
+    const { conversationId, userId, guestId } = req.query as { conversationId?: string; userId?: string; guestId?: string };
+
+    // 访客或未提供 userId 时，直接返回空——每次都是全新对话，绝不展示他人记录
+    if (!userId) {
+      return res.json({ code: 0, data: [], conversationId: null });
+    }
 
     let targetConvId: string | null = null;
     if (conversationId) {
       targetConvId = conversationId;
     } else {
-      // 自动找最新一条带 conversationId 的消息
+      // 先用当前 userId 查最新 conversationId
       const latest = await prisma.chatMessage.findFirst({
-        where: { sessionId, conversationId: { not: null } },
+        where: { sessionId, userId, conversationId: { not: null } },
         orderBy: { createdAt: 'desc' },
         select: { conversationId: true },
       });
       targetConvId = latest?.conversationId ?? null;
+
+      // 如果未找到，用 guestId 兜底（登录前的访客消息）
+      if (!targetConvId && guestId) {
+        const guestLatest = await prisma.chatMessage.findFirst({
+          where: { sessionId, userId: guestId, conversationId: { not: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { conversationId: true },
+        });
+        targetConvId = guestLatest?.conversationId ?? null;
+      }
     }
 
+    // 找到 conversationId 后，获取该会话所有消息（不按 userId 过滤，
+    // 这样作者回复（userId:null）和访客角色消息也会一并返回）
     const where = targetConvId
       ? { sessionId, conversationId: targetConvId }
-      : { sessionId }; // 旧数据无 conversationId，回退到全量
+      : { sessionId, userId };
 
     const messages = await prisma.chatMessage.findMany({
       where,

@@ -31,9 +31,10 @@ interface SessionInfo {
 
 const SOUL_COLOR = '#c8a96e';
 
-async function loadChatHistory(sessionId: string): Promise<Message[]> {
+async function loadChatHistory(sessionId: string, userId: string | undefined): Promise<Message[]> {
+  if (!userId) return [];
   try {
-    const res = await fetch(`/api/h5/chat-history/${encodeURIComponent(sessionId)}`);
+    const res = await fetch(`/api/h5/chat-history/${encodeURIComponent(sessionId)}?userId=${encodeURIComponent(userId)}`);
     const json = await res.json();
     if (json.code !== 0 || !json.data) return [];
     return json.data.map((m: any) => ({
@@ -97,7 +98,7 @@ const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
     (async () => {
       const [deanRes, history] = await Promise.all([
         fetch('/api/h5/dean').then(r => r.json()).catch(() => ({ code: 1 })),
-        loadChatHistory(SESSION_ID),
+        loadChatHistory(SESSION_ID, userId),
       ]);
 
       let deanData: DeanData | null = null;
@@ -299,7 +300,7 @@ const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (showAtPicker) {
-      const count = sessions.filter(s => s.sessionId !== '__dean__' && (!atSearch || s.sessionId.includes(atSearch))).slice(0, atSearch ? 20 : 5).length;
+      const count = sessions.filter(s => !s.sessionId.startsWith('__dean__') && (!atSearch || s.sessionId.includes(atSearch))).slice(0, atSearch ? 20 : 5).length;
       if (e.key === 'ArrowDown') { e.preventDefault(); setPickerIndex(i => Math.min(i + 1, count - 1)); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setPickerIndex(i => Math.max(i - 1, 0)); return; }
       if (e.key === 'Escape') { e.preventDefault(); setShowAtPicker(false); return; }
@@ -523,7 +524,7 @@ const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
             {pickerLoading && sessions.length === 0 ? (
               <div style={{ padding: '14px', textAlign: 'center', color: `${sc}50`, fontSize: '0.7rem' }}>加载中…</div>
             ) : (() => {
-              const list = sessions.filter(s => s.sessionId !== '__dean__' && (!atSearch || s.sessionId.includes(atSearch))).slice(0, atSearch ? 20 : 5);
+              const list = sessions.filter(s => !s.sessionId.startsWith('__dean__') && (!atSearch || s.sessionId.includes(atSearch))).slice(0, atSearch ? 20 : 5);
               return list.length === 0 ? (
                 <div style={{ padding: '14px', textAlign: 'center', color: 'rgba(150,170,210,0.3)', fontSize: '0.7rem' }}>
                   {atSearch ? `未找到「${atSearch}」相关对话` : '暂无灵魂对话记录'}

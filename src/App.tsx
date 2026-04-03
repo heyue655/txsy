@@ -1771,7 +1771,7 @@ export default function App() {
               maxWidth: '500px', margin: '0 auto',
             }}>
               {chatSessions.map((s: any) => {
-                const isDean = s.sessionId === '__dean__';
+                const isDean = s.sessionId === '__dean__' || s.sessionId.startsWith('__dean__');
                 const bookData = !isDean && booksData.find(
                   (b: any) => b.title.replace(/《|》/g, '') === s.sessionId || b.title === s.sessionId
                 );
@@ -2507,6 +2507,7 @@ export default function App() {
           book={soulDialog}
           onClose={handleCloseDialog}
           userId={currentUserId}
+          guestId={authUser ? guestFingerprint : undefined}
           isGuest={!authUser}
           guestMsgCount={guestMsgCount}
           guestLimit={guestLimit}

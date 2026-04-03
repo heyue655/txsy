@@ -37,6 +37,8 @@ interface Props {
   book: BookData;
   onClose: () => void;
   userId?: string;
+  /** fingerprint of the guest session before login, for history fallback */
+  guestId?: string;
   isGuest?: boolean;
   guestMsgCount?: number;
   guestLimit?: number;
@@ -78,9 +80,13 @@ async function fetchPersona(bookTitle: string): Promise<PersonaData | null> {
   }
 }
 
-async function loadChatHistory(sessionId: string): Promise<{ messages: Message[]; conversationId: string | null }> {
+async function loadChatHistory(sessionId: string, userId: string | undefined, guestId?: string): Promise<{ messages: Message[]; conversationId: string | null }> {
+  // Guests never load history — each session is fresh and isolated
+  if (!userId) return { messages: [], conversationId: null };
   try {
-    const res = await fetch(`/api/h5/chat-history/${encodeURIComponent(sessionId)}`);
+    let url = `/api/h5/chat-history/${encodeURIComponent(sessionId)}?userId=${encodeURIComponent(userId)}`;
+    if (guestId) url += `&guestId=${encodeURIComponent(guestId)}`;
+    const res = await fetch(url);
     const json = await res.json();
     if (json.code !== 0 || !json.data) return { messages: [], conversationId: null };
     const messages: Message[] = json.data.map((m: any) => {
@@ -137,7 +143,7 @@ async function saveMessage(
   }).catch(() => {});
 }
 
-const SoulDialog: React.FC<Props> = ({ book, onClose, userId, isGuest, guestMsgCount = 0, guestLimit = 3, onGuestLimitReached, onUserMessage, userScore, userDisplayName }) => {
+const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, guestMsgCount = 0, guestLimit = 3, onGuestLimitReached, onUserMessage, userScore, userDisplayName }) => {
   const [persona, setPersona] = useState<PersonaData | null>(null);
   const sc = book.soulColor;
   const sessionId = getSessionId(book.title);
@@ -185,7 +191,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, isGuest, guestMsgC
     (async () => {
       const [p, historyResult] = await Promise.all([
         fetchPersona(book.title),
-        loadChatHistory(sessionId),
+        loadChatHistory(sessionId, userId, guestId),
       ]);
       setPersona(p);
       const { messages: history, conversationId: existingConvId } = historyResult;
@@ -296,7 +302,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, isGuest, guestMsgC
         setMessages(prev =>
           prev.map(m => m.id === msgId ? { ...m, isTyping: false } : m)
         );
-        if (full) saveMessage(sessionId, convId, 'author', full, undefined);
+        if (full) saveMessage(sessionId, convId, 'author', full, userId);
       } else {
         // 非流式兜底
         const data = await resp.json();
@@ -305,7 +311,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, isGuest, guestMsgC
         setMessages(prev =>
           prev.map(m => m.id === msgId ? { ...m, content, isTyping: false } : m)
         );
-        if (content) saveMessage(sessionId, convId, 'author', content, undefined);
+        if (content) saveMessage(sessionId, convId, 'author', content, userId);
       }
     } catch (e: any) {
       if (e.name === 'AbortError') return;
@@ -316,7 +322,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, isGuest, guestMsgC
     } finally {
       abortRef.current = null;
     }
-  }, [book.title, sessionId]);
+  }, [book.title, sessionId, userId]);
 
   const streamChatAsGuest = useCallback(async (
     guestTitle: string,
@@ -383,7 +389,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, isGuest, guestMsgC
 
       setMessages(prev => prev.map(m => m.id === msgId ? { ...m, isTyping: false } : m));
       if (full) {
-        saveMessage(sessionId, conversationIdRef.current, 'guest', full, undefined, {
+        saveMessage(sessionId, conversationIdRef.current, 'guest', full, userId, {
           speakerName: guestAuthorName,
           guestBookTitle: guestTitle,
         });
@@ -395,7 +401,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, isGuest, guestMsgC
     } finally {
       abortRef.current = null;
     }
-  }, [book.title, sessionId]);
+  }, [book.title, sessionId, userId]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -489,7 +495,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, isGuest, guestMsgC
       hasSavedOpeningRef.current = true;
       const opening = messages.find(m => m.role === 'author');
       if (opening) {
-        saveMessage(sessionId, conversationIdRef.current, 'author', opening.content, undefined);
+        saveMessage(sessionId, conversationIdRef.current, 'author', opening.content, userId);
       }
     }
 
@@ -592,9 +598,9 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, isGuest, guestMsgC
         if (!hasSavedOpeningRef.current) {
           hasSavedOpeningRef.current = true;
           const opening = messages.find(m => m.role === 'author');
-          if (opening) saveMessage(sessionId, conversationIdRef.current, 'author', opening.content, undefined);
+          if (opening) saveMessage(sessionId, conversationIdRef.current, 'author', opening.content, userId);
         }
-        saveMessage(sessionId, conversationIdRef.current, 'author', full, undefined);
+        saveMessage(sessionId, conversationIdRef.current, 'author', full, userId);
         // 有新消息，笔谈状态不强制重置，generateNote 内部会根据消息数判断是否需弹窗
       }
     } catch (e: any) {
@@ -605,7 +611,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, isGuest, guestMsgC
       abortRef.current = null;
       setIsAskingQuestion(false);
     }
-  }, [isThinking, isAskingQuestion, messages, book.title, book.author, sessionId]);
+  }, [isThinking, isAskingQuestion, messages, book.title, book.author, sessionId, userId]);
 
   const doGenerateNote = useCallback(async () => {
     setShowRegenWarn(false);
