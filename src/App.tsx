@@ -1873,7 +1873,7 @@ export default function App() {
                     {/* 顶部：书名 + 评分 + 删除 */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                       <div style={{ color: '#c8a96e', fontSize: '0.8rem', letterSpacing: '2px' }}>
-                        《{note.bookTitle}》
+                        {note.bookTitle}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ display: 'flex', gap: '2px' }}>
