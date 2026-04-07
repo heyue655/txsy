@@ -15,6 +15,7 @@ interface BookItem {
   author: string;
   era: string;
   soulColor: string;
+  isSoulArchive?: boolean;
 }
 
 interface BookData {
@@ -260,6 +261,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
 
   const [showNewChatWarn, setShowNewChatWarn] = useState(false);
   const [showRegenWarn, setShowRegenWarn] = useState(false);
+  const [showNoteGenModal, setShowNoteGenModal] = useState(false);
   const [isGeneratingNote, setIsGeneratingNote] = useState(false);
   const [noteGenerated, setNoteGenerated] = useState(false);
   const [noteToast, setNoteToast] = useState('');
@@ -270,6 +272,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     msgId: string;
     history: { role: string; content: string }[];
     type: 'normal' | 'guest';
+    guestId?: string;
     guestTitle?: string;
     guestAuthorName?: string;
     guestColor?: string;
@@ -282,7 +285,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [pickerIndex, setPickerIndex] = useState(0);
   const [pickerLoading, setPickerLoading] = useState(false);
-  const [guestAuthor, setGuestAuthor] = useState<{ title: string; author: string; color: string } | null>(null);
+  const [guestAuthor, setGuestAuthor] = useState<{ id: string; title: string; author: string; color: string; isSoulArchive?: boolean } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -310,21 +313,44 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
       if (history.length > 0) {
         setMessages(history);
         hasSavedOpeningRef.current = true;
-        // 检查本次对话是否已有笔谈
+        // 检查本次对话是否已有笔谈，或是否有待完成的后台生成
         if (existingConvId) {
-          fetch(`/api/h5/notes/check/${encodeURIComponent(getSessionId(book.title))}?conversationId=${encodeURIComponent(existingConvId)}`)
-            .then(r => r.json())
-            .then(j => {
-              if (j.code === 0 && j.data) {
-                const { hasNote, hasNewMessages } = j.data;
-                if (hasNote && !hasNewMessages) {
-                  // 已有笔谈且无新消息，标记为已归档
+          const noteGenKey = `taixu_note_gen_${sessionId}`;
+          const pendingConvId = localStorage.getItem(noteGenKey);
+          try {
+            const j = await fetch(`/api/h5/notes/check/${encodeURIComponent(getSessionId(book.title))}?conversationId=${encodeURIComponent(existingConvId)}`).then(r => r.json());
+            if (j.code === 0 && j.data) {
+              const { hasNote, hasNewMessages } = j.data;
+              if (hasNote && !hasNewMessages) {
+                // 已有笔谈且无新消息，标记为已归档
+                setNoteGenerated(true);
+                noteMessageCountRef.current = history.length;
+                if (pendingConvId === existingConvId) localStorage.removeItem(noteGenKey);
+              } else if (pendingConvId === existingConvId) {
+                // 笔谈尚未生成但 localStorage 标记了生成中 → 重新触发
+                setIsGeneratingNote(true);
+                fetch('/api/h5/notes/generate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sessionId, bookTitle: book.title, conversationId: existingConvId, userId: userId || null }),
+                }).then(async res => {
+                  const ct = res.headers.get('content-type') || '';
+                  if (!ct.includes('application/json')) throw new Error(`HTTP ${res.status}`);
+                  const json = await res.json();
+                  if (json.code !== 0) throw new Error(json.message || '生成失败');
+                  localStorage.removeItem(noteGenKey);
                   setNoteGenerated(true);
                   noteMessageCountRef.current = history.length;
-                }
+                  setNoteToast('笔谈已生成，可在「太虚笔谈」中查阅 ✦');
+                  setTimeout(() => setNoteToast(''), 4000);
+                }).catch(() => {
+                  localStorage.removeItem(noteGenKey);
+                }).finally(() => {
+                  setIsGeneratingNote(false);
+                });
               }
-            })
-            .catch(() => {});
+            }
+          } catch {}
         }
       } else {
         // 支持多条开场白（用换行分隔），随机选一条
@@ -437,6 +463,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
   }, [book.title, sessionId, userId]);
 
   const streamChatAsGuest = useCallback(async (
+    guestId: string,
     guestTitle: string,
     guestAuthorName: string,
     guestColor: string,
@@ -457,6 +484,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          guestBookId: parseInt(guestId),
           guestBookTitle: guestTitle,
           bookTitle: book.title,
           sessionId,
@@ -510,7 +538,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
       if (e.name === 'AbortError') return;
       setError(e.message || '魂魄连接中断');
       setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: '（魔力传递失败，请稍后再试。）', isTyping: false, isError: true } : m));
-      setRetryInfo({ msgId, history, type: 'guest', guestTitle, guestAuthorName, guestColor });
+      setRetryInfo({ msgId, history, type: 'guest', guestId, guestTitle, guestAuthorName, guestColor });
     } finally {
       abortRef.current = null;
     }
@@ -547,15 +575,26 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
             .then(j => {
               if (j.code === 0 && j.data) {
                 const currentClean = book.title.replace(/《|》/g, '');
-                const list: BookItem[] = j.data
+                const all: BookItem[] = j.data
                   .filter((b: any) => b.title !== currentClean && b.title !== book.title)
-                  .map((b: any) => ({
-                    id: b.id,
-                    title: b.title,
-                    author: b.author,
-                    era: b.era || '',
-                    soulColor: b.soulColor || '#8ec8f8',
-                  }));
+                  .map((b: any) => {
+                    let cats: string[] = [];
+                    try { cats = JSON.parse(b.categories || '[]'); } catch {}
+                    const isSoulArchive = cats.includes('灵魂档案');
+                    return {
+                      id: b.id,
+                      title: b.title,
+                      author: b.author,
+                      era: b.era || '',
+                      soulColor: b.soulColor || '#8ec8f8',
+                      isSoulArchive,
+                    };
+                  });
+                // 灵魂档案在前，书籍档案在后
+                const list = [
+                  ...all.filter(b => b.isSoulArchive),
+                  ...all.filter(b => !b.isSoulArchive),
+                ];
                 setBookList(list);
               }
               setBooksLoaded(true);
@@ -577,7 +616,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     if (pos < 0) return;
     // 插入作者名（而非书名）
     setInput(prev => prev.slice(0, pos) + `@${b.author}` + prev.slice(pos + 1 + atSearch.length));
-    setGuestAuthor({ title: b.title, author: b.author, color: b.soulColor });
+    setGuestAuthor({ id: b.id, title: b.title, author: b.author, color: b.soulColor, isSoulArchive: b.isSoulArchive });
     setShowAtPicker(false);
     setTimeout(() => inputRef.current?.focus(), 0);
   }, [atSearch]);
@@ -627,7 +666,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
 
     try {
       if (currentGuest) {
-        await streamChatAsGuest(currentGuest.title, currentGuest.author, currentGuest.color, history);
+        await streamChatAsGuest(currentGuest.id, currentGuest.title, currentGuest.author, currentGuest.color, history);
       } else {
         await streamChat(history);
       }
@@ -728,13 +767,17 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
 
   const doGenerateNote = useCallback(async () => {
     setShowRegenWarn(false);
+    const convId = conversationIdRef.current;
+    const noteGenKey = `taixu_note_gen_${sessionId}`;
+    localStorage.setItem(noteGenKey, convId);
     setIsGeneratingNote(true);
+    setShowNoteGenModal(true);
     setError('');
     try {
       const res = await fetch('/api/h5/notes/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, bookTitle: book.title, conversationId: conversationIdRef.current, userId: userId || null }),
+        body: JSON.stringify({ sessionId, bookTitle: book.title, conversationId: convId, userId: userId || null }),
       });
       const ct = res.headers.get('content-type') || '';
       if (!ct.includes('application/json')) {
@@ -743,11 +786,13 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
       const json = await res.json();
       if (json.code !== 0) throw new Error(json.message || '生成失败');
       setNoteGenerated(true);
+      localStorage.removeItem(noteGenKey);
       noteMessageCountRef.current = messages.filter(m => !m.isTyping).length;
       setNoteToast('笔谈已生成，可在「太虚笔谈」中查阅 ✦');
       setTimeout(() => setNoteToast(''), 4000);
     } catch (e: any) {
       setError(e.message || '生成笔谈失败');
+      localStorage.removeItem(noteGenKey);
     } finally {
       setIsGeneratingNote(false);
     }
@@ -798,7 +843,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
 
   const handleRetry = useCallback(async () => {
     if (!retryInfo || isThinking) return;
-    const { msgId, history, type, guestTitle, guestAuthorName, guestColor } = retryInfo;
+    const { msgId, history, type, guestId, guestTitle, guestAuthorName, guestColor } = retryInfo;
     // Remove the failed message so the stream creates a fresh one
     setMessages(prev => prev.filter(m => m.id !== msgId));
     setRetryInfo(null);
@@ -806,8 +851,8 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     setIsThinking(true);
     isSendingRef.current = true;
     try {
-      if (type === 'guest' && guestTitle && guestAuthorName && guestColor) {
-        await streamChatAsGuest(guestTitle, guestAuthorName, guestColor, history);
+      if (type === 'guest' && guestId && guestTitle && guestAuthorName && guestColor) {
+        await streamChatAsGuest(guestId, guestTitle, guestAuthorName, guestColor, history);
       } else {
         await streamChat(history);
       }
@@ -1207,8 +1252,12 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
                   }}
                 >
                   <div>
-                    <span style={{ color: b.soulColor, fontSize: '0.8rem', letterSpacing: '1px' }}>《{b.title}》</span>
-                    <span style={{ color: 'rgba(160,185,230,0.5)', fontSize: '0.68rem', marginLeft: '8px' }}>{b.author}{b.era ? ` · ${b.era}` : ''}</span>
+                    {b.isSoulArchive ? (
+                      <span style={{ color: b.soulColor, fontSize: '0.8rem', letterSpacing: '1px' }}>{b.author}</span>
+                    ) : (
+                      <span style={{ color: b.soulColor, fontSize: '0.8rem', letterSpacing: '1px' }}>《{b.title}》</span>
+                    )}
+                    <span style={{ color: 'rgba(160,185,230,0.5)', fontSize: '0.68rem', marginLeft: '8px' }}>{b.isSoulArchive ? '' : `${b.author} · `}{b.era}</span>
                   </div>
                 </div>
               ));
@@ -1227,7 +1276,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
                 background: `${guestAuthor.color}18`, border: `1px solid ${guestAuthor.color}40`,
                 borderRadius: '12px', padding: '2px 10px',
                 color: `${guestAuthor.color}cc`, letterSpacing: '1px',
-              }}>📎 正在邀请 {guestAuthor.author} <span style={{ opacity: 0.6 }}>·《{guestAuthor.title}》</span></span>
+              }}>📎 正在邀请 {guestAuthor.author}{guestAuthor.isSoulArchive ? '' : <span style={{ opacity: 0.6 }}> ·《{guestAuthor.title}》</span>}</span>
               <span
                 onClick={() => { setGuestAuthor(null); setInput(prev => prev.replace(/@《[^》]+》\s*/g, '')); }}
                 style={{ cursor: 'pointer', color: 'rgba(150,170,210,0.4)', fontSize: '0.7rem', padding: '2px 4px' }}
@@ -1300,56 +1349,6 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
               color: 'rgba(170,190,230,0.6)', fontSize: '0.76rem', lineHeight: '1.8',
               marginBottom: '24px', letterSpacing: '0.5px',
             }}>
-              本次对话已生成过笔谈，重复生成将覆盖原有记录。确认重新生成？
-            </div>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <button
-                onClick={() => setShowRegenWarn(false)}
-                style={{
-                  padding: '8px 18px', borderRadius: '20px',
-                  background: 'rgba(20,30,60,0.5)', border: '1px solid rgba(60,80,140,0.3)',
-                  color: 'rgba(130,155,200,0.55)', fontSize: '0.75rem', cursor: 'pointer',
-                  letterSpacing: '1px', fontFamily: '"KaiTi","STKaiti",serif',
-                }}
-              >取消</button>
-              <button
-                onClick={doGenerateNote}
-                style={{
-                  padding: '8px 18px', borderRadius: '20px',
-                  background: `linear-gradient(135deg, ${sc}cc, ${sc}88)`,
-                  border: 'none',
-                  color: '#fff', fontSize: '0.75rem', cursor: 'pointer',
-                  letterSpacing: '1px', fontFamily: '"KaiTi","STKaiti",serif',
-                  boxShadow: `0 0 14px ${sc}44`,
-                }}
-              >重新生成</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== 重复生成笔谈确认 ===== */}
-      {showRegenWarn && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 200,
-          background: 'rgba(0,4,16,0.85)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '24px',
-        }}>
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(8,14,42,0.98), rgba(4,8,28,0.98))',
-            border: `1px solid ${sc}30`, borderRadius: '16px',
-            padding: '28px 24px', maxWidth: '320px', width: '100%',
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '1.8rem', marginBottom: '12px' }}>📜</div>
-            <div style={{ color: sc, fontSize: '0.95rem', letterSpacing: '3px', marginBottom: '12px' }}>
-              已有归档笔谈
-            </div>
-            <div style={{
-              color: 'rgba(170,190,230,0.6)', fontSize: '0.76rem', lineHeight: '1.8',
-              marginBottom: '24px', letterSpacing: '0.5px',
-            }}>
               本次对话已生成过笔谈。重新生成将覆盖原有记录，确认继续？
             </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
@@ -1373,6 +1372,44 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
                 }}
               >重新生成</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 笔谈生成中提示 ===== */}
+      {showNoteGenModal && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 200,
+          background: 'rgba(0,4,16,0.85)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '24px',
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(8,14,42,0.98), rgba(4,8,28,0.98))',
+            border: `1px solid ${sc}30`, borderRadius: '16px',
+            padding: '28px 24px', maxWidth: '320px', width: '100%',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '1.8rem', marginBottom: '12px' }}>✦</div>
+            <div style={{ color: sc, fontSize: '0.95rem', letterSpacing: '3px', marginBottom: '12px' }}>
+              正在生成笔谈
+            </div>
+            <div style={{
+              color: 'rgba(170,190,230,0.6)', fontSize: '0.76rem', lineHeight: '1.8',
+              marginBottom: '24px', letterSpacing: '0.5px',
+            }}>
+              笔谈正在后台生成，您可以继续浏览。<br />完成后请前往「太虚笔谈」查看。
+            </div>
+            <button
+              onClick={() => setShowNoteGenModal(false)}
+              style={{
+                padding: '8px 28px', borderRadius: '20px',
+                background: `linear-gradient(135deg, ${sc}cc, ${sc}88)`,
+                border: 'none', color: '#fff', fontSize: '0.75rem', cursor: 'pointer',
+                letterSpacing: '2px', fontFamily: '"KaiTi","STKaiti",serif',
+                boxShadow: `0 0 14px ${sc}44`,
+              }}
+            >知道了</button>
           </div>
         </div>
       )}

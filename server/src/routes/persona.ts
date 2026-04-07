@@ -132,6 +132,8 @@ ${book.description ? `简介：${book.description}` : ''}
 
 注意：严格基于历史事实和此书内容，不要虚构；只返回JSON，不要其他内容`;
 
+    console.log(`[灵魂档案] 请求 LLM: endpoint=${config.endpoint} model=${config.model}`);
+
     const response = await fetch(config.endpoint, {
       method: 'POST',
       headers: {
@@ -146,8 +148,10 @@ ${book.description ? `简介：${book.description}` : ''}
       }),
     });
 
+    console.log(`[灵魂档案] LLM 响应状态: ${response.status} content-type: ${response.headers.get('content-type')}`);
     const bodyText = await response.text();
     if (!response.ok) {
+      console.error(`[灵魂档案] LLM 错误响应体:\n${bodyText.slice(0, 500)}`);
       let errMsg = `LLM 错误 ${response.status}`;
       try { errMsg = JSON.parse(bodyText).error?.message || errMsg; } catch {}
       return res.status(500).json({ code: 1, message: errMsg });
@@ -155,9 +159,13 @@ ${book.description ? `简介：${book.description}` : ''}
 
     let data: any;
     try { data = JSON.parse(bodyText); }
-    catch { return res.status(502).json({ code: 1, message: '大模型响应格式异常，请检查 LLM 配置是否正确' }); }
+    catch {
+      console.error(`[灵魂档案] LLM 响应非 JSON，完整内容:\n${bodyText}`);
+      return res.status(502).json({ code: 1, message: '大模型响应格式异常，请检查 LLM 配置是否正确' });
+    }
 
     let content = data.choices?.[0]?.message?.content || '';
+    console.log(`[灵魂档案] LLM content 原始值:\n${content}`);
 
     // 清理 markdown 代码块
     content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
@@ -167,7 +175,10 @@ ${book.description ? `简介：${book.description}` : ''}
 
     let persona: any;
     try { persona = JSON.parse(content); }
-    catch { return res.status(500).json({ code: 1, message: '模型返回格式无法解析，请重试' }); }
+    catch (e: any) {
+      console.error(`[灵魂档案] content JSON.parse 失败 (${e.message})，清理后内容:\n${content}`);
+      return res.status(500).json({ code: 1, message: '模型返回格式无法解析，请重试' });
+    }
 
     res.json({ code: 0, data: persona });
   } catch (e: any) {

@@ -67,20 +67,38 @@ app.post('/api/h5/chat', async (req, res) => {
     if (!config) {
       return res.status(400).json({ code: 1, message: '未配置大模型' });
     }
-    const { messages, bookId, bookTitle, sessionId, guestBookTitle } = req.body;
+    const { messages, bookId, bookTitle, sessionId, guestBookTitle, guestBookId } = req.body;
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ code: 1, message: 'messages 参数缺失' });
     }
 
     // 查找书籍和人格档案，用于构建 system prompt
-    // 若提供 guestBookTitle，则使用访客书籍的人格（@提及功能）
-    const resolvedTitle = guestBookTitle || bookTitle;
+    // 若提供 guestBookTitle，则使用访客书籍的人格（@提及功能），并额外加载主线书籍供上下文
     let systemPrompt = '你是一位古代文学大师，请与用户对话。';
     let book: any = null;
-    if (bookId && !guestBookTitle) {
+    let mainBook: any = null; // 主线书籍（@提及时用于提供对话上下文）
+    if (guestBookTitle) {
+      // @提及：加载被引用者的灵魂档案
+      const cleanGuest = guestBookTitle.replace(/《|》/g, '');
+      if (guestBookId) {
+        book = await prisma.book.findUnique({ where: { id: guestBookId }, include: { persona: true } });
+      } else {
+        book = await prisma.book.findFirst({
+          where: { title: { contains: cleanGuest } },
+          include: { persona: true },
+        });
+      }
+      // 同时加载主线书籍，用于告知被引用者当前对话的上下文
+      if (bookId) {
+        mainBook = await prisma.book.findUnique({ where: { id: bookId }, include: { persona: true } });
+      } else if (bookTitle) {
+        const cleanMain = bookTitle.replace(/《|》/g, '');
+        mainBook = await prisma.book.findFirst({ where: { title: { contains: cleanMain } }, include: { persona: true } });
+      }
+    } else if (bookId) {
       book = await prisma.book.findUnique({ where: { id: bookId }, include: { persona: true } });
-    } else if (resolvedTitle) {
-      const cleanTitle = resolvedTitle.replace(/《|》/g, '');
+    } else if (bookTitle) {
+      const cleanTitle = bookTitle.replace(/《|》/g, '');
       book = await prisma.book.findFirst({
         where: { title: { contains: cleanTitle } },
         include: { persona: true },
@@ -112,7 +130,10 @@ app.post('/api/h5/chat', async (req, res) => {
       const p = book.persona;
       let coreViews: string[] = [];
       try { coreViews = JSON.parse(p.coreViews); } catch { coreViews = p.coreViews ? [p.coreViews] : []; }
-      systemPrompt = `你是${book.author}，${p.identity}，用户正在基于${book.title}与您进行对话。
+      const mainContext = guestBookTitle
+        ? (mainBook ? `《${mainBook.title}》（${mainBook.author}著）` : (bookTitle || '另一本书'))
+        : null;
+      systemPrompt = `你是${book.author}，${p.identity}。${guestBookTitle ? `《${book.title}》的作者。` : `用户正在基于《${book.title}》与您进行对话。`}
 你的灵魂档案如下：
 专业领域：${p.profession || '未知'}
 社会地位：${p.socialStatus || '未知'}
@@ -126,11 +147,11 @@ app.post('/api/h5/chat', async (req, res) => {
 知识边界：${p.knowledgeLimits}
 说话风格：${p.speakingStyle}
 
-${guestBookTitle ? `你被读者@提及，正在参与一场并非你自己著作的灵魂对话。对话的主线是关于另一本书，读者希望听取你的视角与见解。` : `你正在与一位现代读者进行"灵魂交流"——一场跨越时空的思想交流。`}
+${guestBookTitle ? `你被读者@提及，正在参与一场关于${mainContext}的跨越时空灵魂对话。对话主线并非你自己的著作，读者是在讨论${mainContext}时希望借助你的思想视野提供独特视角。` : `你正在与一位现代读者进行"灵魂交流"——一场跨越时空的思想交流。`}
 规则：
 - 始终以第一人称作为${book.author}回答，保持年代身份和知识边界
-- 与读者探讨书中的观点，或者向读者进一步解释，让他能够理解吸收内容
-- 如果读者未读过或不了解书中观点，你需要详细解释，直到读者理解为止
+- ${guestBookTitle ? `结合你的思想体系，为读者理解${mainContext}提供独特视角，可与该书作者的观点进行呼应或对比` : `与读者探讨书中的观点，或者向读者进一步解释，让他能够理解吸收内容`}
+- ${guestBookTitle ? `你可以援引你自己的著作和思想，但以${mainContext}的议题为主轴` : `如果读者未读过或不了解书中观点，你需要详细解释，直到读者理解为止`}
 - 可以赞同、质疑或反驳用户观点，展开思辨
 - 你无需在对话中老是强调和引用你的核心观点，但要让它们自然地体现在你的回答里
 - 如果读者命中了你的喜好厌恶，或者触及了你的知识边界，你可以表现出相应的情绪态度
@@ -484,7 +505,9 @@ ${dialogText}
 
     // Read body as text first so HTML error pages don't throw a SyntaxError
     const bodyText = await response.text();
+    console.log(`[笔谈] LLM 响应状态: ${response.status} content-type: ${response.headers.get('content-type')}`);
     if (!response.ok) {
+      console.error(`[笔谈] LLM 错误响应体:\n${bodyText.slice(0, 500)}`);
       let errMsg = '大模型调用失败';
       try { errMsg = JSON.parse(bodyText).error?.message || errMsg; } catch {}
       return res.status(500).json({ code: 1, message: errMsg });
@@ -494,7 +517,7 @@ ${dialogText}
     try {
       data = JSON.parse(bodyText);
     } catch {
-      console.error('[笔谈] LLM 返回非 JSON 响应:', bodyText.slice(0, 300));
+      console.error('[笔谈] LLM 返回非 JSON 响应，完整内容:\n' + bodyText);
       return res.status(502).json({ code: 1, message: '大模型响应格式异常，请检查 LLM 配置是否正确' });
     }
     const raw = data.choices?.[0]?.message?.content || '';
@@ -687,7 +710,10 @@ app.get('/api/h5/user/stats', async (req, res) => {
     const inviteCount = user.inviteCode
       ? await prisma.invitation.count({ where: { inviterCode: user.inviteCode } })
       : 0;
-    res.json({ code: 0, data: { id: user.id, username: user.username, nickname: user.nickname, inviteCode: user.inviteCode, noteCount, totalScore, inviteCount } });
+    const bookGroups = await prisma.chatMessage.groupBy({ by: ['sessionId'], where: { userId } });
+    const bookCount = bookGroups.length;
+    const msgCount = await prisma.chatMessage.count({ where: { userId, role: 'user' } });
+    res.json({ code: 0, data: { id: user.id, username: user.username, nickname: user.nickname, inviteCode: user.inviteCode, noteCount, totalScore, inviteCount, bookCount, msgCount } });
   } catch {
     res.status(401).json({ code: 1, message: '认证失败' });
   }

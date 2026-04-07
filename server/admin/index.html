@@ -156,11 +156,16 @@ async function renderDashboard(c) {
 }
 
 // ---- 书籍管理 ----
+const BOOKS_PAGE_SIZE = 10;
+let booksCurrentPage = 1;
+let booksFiltered = [];
+
 async function renderBooks(c) {
   const res = await api('/books');
   booksCache = (res.data || [])
     .filter(b => { try { return !JSON.parse(b.categories || '[]').includes('灵魂档案'); } catch { return true; } })
     .sort((a, b) => b.id - a.id);
+  booksCurrentPage = 1;
   c.innerHTML = `
     <h2>📚 书籍管理</h2>
     <div class="toolbar">
@@ -176,14 +181,44 @@ async function renderBooks(c) {
 
 window.filterBooks = function() {
   const q = (document.getElementById('book-search')?.value || '').toLowerCase();
-  const filtered = q ? booksCache.filter(b => b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)) : booksCache;
+  booksFiltered = q ? booksCache.filter(b => b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)) : booksCache;
+  booksCurrentPage = 1;
+  renderBooksPage();
+};
+
+window.renderBooksPage = function() {
   const container = document.getElementById('books-table-container');
   if (!container) return;
+  const total = booksFiltered.length;
+  const totalPages = Math.max(1, Math.ceil(total / BOOKS_PAGE_SIZE));
+  if (booksCurrentPage > totalPages) booksCurrentPage = totalPages;
+  const start = (booksCurrentPage - 1) * BOOKS_PAGE_SIZE;
+  const pageItems = booksFiltered.slice(start, start + BOOKS_PAGE_SIZE);
+
+  // 分页按钮生成
+  const pageButtons = () => {
+    if (totalPages <= 1) return '';
+    let btns = '';
+    const p = booksCurrentPage;
+    const mkBtn = (n, label, disabled) =>
+      `<button onclick="goBooksPage(${n})" style="min-width:32px;height:30px;padding:0 10px;border:1px solid var(--border);border-radius:5px;background:${n === p ? 'var(--primary)' : 'var(--bg3)'};color:${n === p ? '#fff' : 'var(--text2)'};font-size:12px;cursor:${disabled ? 'default' : 'pointer'};opacity:${disabled ? 0.4 : 1};" ${disabled ? 'disabled' : ''}>${label}</button>`;
+    btns += mkBtn(p - 1, '‹', p <= 1);
+    // 最多显示 5 个页码
+    let pageStart = Math.max(1, p - 2);
+    let pageEnd   = Math.min(totalPages, pageStart + 4);
+    if (pageEnd - pageStart < 4) pageStart = Math.max(1, pageEnd - 4);
+    if (pageStart > 1) btns += mkBtn(1, '1', false) + (pageStart > 2 ? '<span style="color:var(--text2);padding:0 4px;">…</span>' : '');
+    for (let i = pageStart; i <= pageEnd; i++) btns += mkBtn(i, i, i === p);
+    if (pageEnd < totalPages) btns += (pageEnd < totalPages - 1 ? '<span style="color:var(--text2);padding:0 4px;">…</span>' : '') + mkBtn(totalPages, totalPages, false);
+    btns += mkBtn(p + 1, '›', p >= totalPages);
+    return `<div style="display:flex;align-items:center;gap:6px;margin-top:14px;justify-content:flex-end;">${btns}<span style="color:var(--text2);font-size:12px;margin-left:6px;">第 ${p} / ${totalPages} 页</span></div>`;
+  };
+
   container.innerHTML = `
-    <div style="color:var(--text2);font-size:13px;margin-bottom:8px;">共 ${filtered.length} 本</div>
+    <div style="color:var(--text2);font-size:13px;margin-bottom:8px;">共 ${total} 本，当前第 ${start + 1}–${Math.min(start + BOOKS_PAGE_SIZE, total)} 条</div>
     <table>
       <tr><th>#</th><th>书名</th><th>作者</th><th>年代</th><th>灵魂色</th><th>灵魂档案</th><th>状态</th><th>操作</th></tr>
-      ${filtered.map(b => `
+      ${pageItems.map(b => `
         <tr>
           <td>${b.id}</td>
           <td><strong>${b.title}</strong></td>
@@ -199,7 +234,15 @@ window.filterBooks = function() {
         </tr>
       `).join('')}
     </table>
+    ${pageButtons()}
   `;
+};
+
+window.goBooksPage = function(n) {
+  const totalPages = Math.max(1, Math.ceil(booksFiltered.length / BOOKS_PAGE_SIZE));
+  if (n < 1 || n > totalPages) return;
+  booksCurrentPage = n;
+  renderBooksPage();
 };
 
 window.showBookForm = async function(id) {

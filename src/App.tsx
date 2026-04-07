@@ -862,7 +862,7 @@ export default function App() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginLimitReached, setLoginLimitReached] = useState(false);
   // 用户档案 (profile tab stats — fetched lazily)
-  const [profileStats, setProfileStats] = useState<{ noteCount: number; totalScore: number } | null>(null);
+  const [profileStats, setProfileStats] = useState<{ noteCount: number; totalScore: number; bookCount?: number; msgCount?: number } | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [nicknameEdit, setNicknameEdit] = useState('');
   const [nicknameEditing, setNicknameEditing] = useState(false);
@@ -1271,7 +1271,7 @@ export default function App() {
         };
       });
 
-      const HEADER_H = 210;
+      const HEADER_H = 172;
       const FOOTER_H = 218;
       const cardsH = cards.reduce((s, c) => s + c.cardH + CARD_GAP, 0) - CARD_GAP;
       const H = HEADER_H + cardsH + 48 + FOOTER_H;
@@ -1305,19 +1305,15 @@ export default function App() {
       ctx.font = 'bold 38px KaiTi, STKaiti, serif';
       ctx.fillStyle = goldColor; ctx.textAlign = 'center';
       ctx.shadowColor = `${goldColor}88`; ctx.shadowBlur = 18;
-      ctx.fillText('太虚书院', W / 2, 46); ctx.shadowBlur = 0;
+      ctx.fillText(`${note.bookTitle}`, W / 2, 46); ctx.shadowBlur = 0;
 
-      ctx.font = '17px KaiTi, STKaiti, serif';
-      ctx.fillStyle = 'rgba(200,169,110,0.42)';
-      ctx.fillText('灵魂对弈 · 各家观点', W / 2, 90);
-
-      ctx.font = 'bold 24px KaiTi, STKaiti, serif';
-      ctx.fillStyle = 'rgba(200,220,255,0.85)';
-      ctx.fillText(`《${note.bookTitle}》`, W / 2, 130);
+      ctx.font = '19px KaiTi, STKaiti, serif';
+      ctx.fillStyle = goldColor;
+      ctx.fillText('别去书中寻找答案，去与灵魂对话', W / 2, 90);
 
       const stars = Array.from({ length: 5 }, (_, i) => i < (note.score || 3) ? '★' : '☆').join('  ');
       ctx.font = '19px serif'; ctx.fillStyle = goldColor;
-      ctx.fillText(stars, W / 2, 164);
+      ctx.fillText(stars, W / 2, 130);
 
       drawHRule(HEADER_H - 12, 0.10);
 
@@ -1524,17 +1520,21 @@ export default function App() {
       ctx.fillText('txsy.pinyanzhi.net', qrCX, qrY + qrSize + 42);
 
       // 左侧：宣传语
+      const SHARE_SLOGANS = [
+        '以对话叩问古今',
+        '太虚之内，必有回响',
+        '与先贤同坐，共论千秋',
+        '书卷未尽，灵魂犹在',
+        '一问一答，字字皆道',
+      ];
+      const slogan = SHARE_SLOGANS[Math.floor(Math.random() * SHARE_SLOGANS.length)];
       const sloganX = OUTER_PAD + 20;
       ctx.textAlign = 'left';
       ctx.font = 'bold 28px KaiTi, STKaiti, serif';
       ctx.fillStyle = goldColor;
       ctx.shadowColor = goldColor + '88'; ctx.shadowBlur = 16;
-      ctx.fillText('以对话叩问古今', sloganX, footerTop + 72);
+      ctx.fillText(slogan, sloganX, footerTop + 72);
       ctx.shadowBlur = 0;
-
-      ctx.font = '17px KaiTi, STKaiti, serif';
-      ctx.fillStyle = 'rgba(200,169,110,0.60)';
-      ctx.fillText('与千年先贤共探大道', sloganX, footerTop + 110);
 
       ctx.font = '14px KaiTi, STKaiti, serif';
       ctx.fillStyle = 'rgba(200,169,110,0.28)';
@@ -1749,13 +1749,25 @@ export default function App() {
           position: 'absolute', inset: 0,
           background: 'linear-gradient(180deg, #000510 0%, #020a1a 50%, #000510 100%)',
           overflowY: 'auto',
-          padding: '70px 20px 90px',
           fontFamily: '"KaiTi", "STKaiti", serif',
+          display: 'flex', flexDirection: 'column',
+          paddingBottom: '60px',
         }}>
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h2 style={{ color: '#8ec8f8', fontSize: '1.4rem', letterSpacing: '6px', margin: 0 }}>灵魂降临</h2>
-            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', marginTop: '6px' }}>与先贤对弈的记忆</p>
+          {/* 标题栏 */}
+          <div style={{
+            padding: '20px 20px 12px',
+            borderBottom: '1px solid rgba(200,169,110,0.15)',
+            flexShrink: 0,
+          }}>
+            <div style={{ color: '#c8a96e', fontSize: '1.15rem', letterSpacing: '5px', textShadow: '0 0 14px #c8a96e90' }}>
+              太虚问道
+            </div>
+            <div style={{ color: 'rgba(150,170,210,0.4)', fontSize: '0.65rem', letterSpacing: '2px', marginTop: '4px' }}>
+              与先贤对弈的记忆
+            </div>
           </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 0' }}>
 
           {chatSessions.length === 0 ? (
             <div style={{ textAlign: 'center', marginTop: '60px' }}>
@@ -1821,6 +1833,7 @@ export default function App() {
               })}
             </div>
           )}
+          </div>
         </div>
       )}
 
@@ -1992,8 +2005,12 @@ export default function App() {
           paddingBottom: '60px',
           overflowY: 'auto',
         }}>
-          {/* 标题 */}
-          <div style={{ padding: '28px 24px 18px', borderBottom: '1px solid rgba(200,169,110,0.12)', flexShrink: 0 }}>
+          {/* 标题栏 */}
+          <div style={{
+            padding: '20px 20px 12px',
+            borderBottom: '1px solid rgba(200,169,110,0.15)',
+            flexShrink: 0,
+          }}>
             <div style={{ color: '#c8a96e', fontSize: '1.15rem', letterSpacing: '5px', textShadow: '0 0 14px #c8a96e90' }}>
               灵　犀
             </div>
@@ -2002,7 +2019,7 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ flex: 1, padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ flex: 1, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {authUser ? (
               <>
                 {/* 用户信息卡 */}
@@ -2044,9 +2061,9 @@ export default function App() {
                         ? `linear-gradient(145deg, ${rc}0d 0%, rgba(8,16,48,0.82) 60%, ${gc2}0d 100%)`
                         : 'rgba(8,16,48,0.7)',
                       border: `1px solid ${rc}30`,
-                      borderRadius: '16px',
-                      padding: '22px 20px',
-                      boxShadow: rank ? `0 0 32px ${rc}18, inset 0 0 40px ${rc}08` : 'none',
+                      borderRadius: '14px',
+                      padding: '14px 14px',
+                      boxShadow: rank ? `0 0 24px ${rc}14, inset 0 0 30px ${rc}06` : 'none',
                       position: 'relative',
                     }}>
                       {/* ? 按钮放右上角 */}
@@ -2066,7 +2083,7 @@ export default function App() {
                       )}
 
                       {/* 头像区 */}
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: rank ? '14px' : '18px' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: rank ? '10px' : '12px' }}>
                         {/* SVG 多边形头像框 */}
                         <div style={{ position: 'relative', flexShrink: 0, width: '88px', height: '88px' }}>
                           <svg width="88" height="88" style={{ position: 'absolute', inset: 0 }}>
@@ -2124,7 +2141,7 @@ export default function App() {
                         </div>
 
                         {/* 名字 + 段位 + 进度 */}
-                        <div style={{ flex: 1, overflow: 'hidden', paddingTop: '6px' }}>
+                        <div style={{ flex: 1, overflow: 'hidden', paddingTop: '2px' }}>
                           {nicknameEditing ? (
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                               <input
@@ -2183,8 +2200,8 @@ export default function App() {
 
                           {/* 段位进度 */}
                           {rank && (
-                            <div style={{ marginTop: '8px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
+                            <div style={{ marginTop: '5px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
                                 <span style={{ color: `${rc}88`, fontSize: '11px' }}>{rank.label}</span>
                               </div>
                               {/* 进度条 */}
@@ -2216,21 +2233,22 @@ export default function App() {
                       {profileLoading ? (
                         <div style={{ textAlign: 'center', color: 'rgba(200,169,110,0.3)', fontSize: '13px', letterSpacing: '2px', padding: '10px 0' }}>灵光汇聚中…</div>
                       ) : profileStats ? (
-                        <div style={{ display: 'flex', gap: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
                           {[
-                            { label: '累计分值', value: profileStats.totalScore, unit: '分', color: rc },
-                            { label: '笔谈篇数', value: profileStats.noteCount, unit: '篇', color: '#7dd3fc' },
-                            { label: '平均得分', value: profileStats.noteCount > 0 ? (profileStats.totalScore / profileStats.noteCount).toFixed(1) : '—', unit: '', color: '#a78bfa' },
+                            { label: '点亮灵魂', value: profileStats.bookCount ?? '—', unit: '', color: '#f59e42', sub: '先贤' },
+                            { label: '论道次数', value: profileStats.msgCount ?? '—', unit: '', color: '#34d399', sub: '发言' },
+                            { label: '笔谈篇数', value: profileStats.noteCount, unit: '', color: '#7dd3fc', sub: '笔谈' },
+                            { label: '累计分值', value: profileStats.totalScore, unit: '', color: rc, sub: '积分' },
                           ].map(s => (
                             <div key={s.label} style={{
-                              flex: 1, background: 'rgba(0,5,20,0.45)', borderRadius: '10px',
-                              padding: '10px 6px', textAlign: 'center',
+                              background: 'rgba(0,5,20,0.45)', borderRadius: '8px',
+                              padding: '8px 4px 6px', textAlign: 'center',
                               border: `1px solid ${s.color}22`,
                             }}>
-                              <div style={{ color: s.color, fontSize: '20px', fontWeight: 'bold' }}>
-                                {s.value}{s.unit}
+                              <div style={{ color: s.color, fontSize: '18px', fontWeight: 'bold', lineHeight: 1 }}>
+                                {s.value}
                               </div>
-                              <div style={{ color: 'rgba(150,170,210,0.4)', fontSize: '10px', marginTop: '3px', letterSpacing: '1px' }}>
+                              <div style={{ color: 'rgba(150,170,210,0.5)', fontSize: '9px', marginTop: '4px', letterSpacing: '0.5px' }}>
                                 {s.label}
                               </div>
                             </div>
@@ -2253,17 +2271,17 @@ export default function App() {
                 <div style={{
                   background: 'rgba(8,16,48,0.7)',
                   border: '1px solid rgba(80,120,200,0.12)',
-                  borderRadius: '16px',
+                  borderRadius: '12px',
                   overflow: 'hidden',
                 }}>
-                  <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(80,120,200,0.08)', color: 'rgba(150,170,210,0.4)', fontSize: '12px', letterSpacing: '3px' }}>
+                  <div style={{ padding: '9px 14px', borderBottom: '1px solid rgba(80,120,200,0.08)', color: 'rgba(150,170,210,0.4)', fontSize: '11px', letterSpacing: '3px' }}>
                     设　置
                   </div>
                   <div
                     onClick={handleLogout}
                     style={{
-                      padding: '16px 18px', cursor: 'pointer', color: 'rgba(255,130,100,0.65)',
-                      fontSize: '14px', letterSpacing: '2px', transition: 'background 0.2s',
+                      padding: '11px 14px', cursor: 'pointer', color: 'rgba(255,130,100,0.65)',
+                      fontSize: '13px', letterSpacing: '2px', transition: 'background 0.2s',
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     }}
                   >
@@ -2373,33 +2391,32 @@ export default function App() {
                 <div style={{
                   background: 'rgba(8,16,48,0.7)',
                   border: '1px solid rgba(120,160,230,0.12)',
-                  borderRadius: '16px',
-                  padding: '24px 20px',
+                  borderRadius: '14px',
+                  padding: '16px 16px',
                   textAlign: 'center',
                 }}>
-                  <div style={{ fontSize: '40px', marginBottom: '12px' }}>🌌</div>
-                  <div style={{ color: 'rgba(200,220,255,0.6)', fontSize: '15px', letterSpacing: '2px', marginBottom: '6px' }}>访客身份</div>
-                  <div style={{ color: 'rgba(120,150,200,0.4)', fontSize: '12px', letterSpacing: '1px', lineHeight: '1.8', marginBottom: '18px' }}>
-                    登录后可无限与先贤对话<br />并记录你的修炼历程
+                  <div style={{ fontSize: '30px', marginBottom: '8px' }}>🌌</div>
+                  <div style={{ color: 'rgba(200,220,255,0.6)', fontSize: '14px', letterSpacing: '2px', marginBottom: '4px' }}>访客身份</div>
+                  <div style={{ color: 'rgba(120,150,200,0.4)', fontSize: '11px', letterSpacing: '1px', lineHeight: '1.7', marginBottom: '12px' }}>
+                    登录后可无限与先贤对话，并记录修炼历程
                   </div>
                   {/* 访客剩余次数 */}
                   <div style={{
-                    background: 'rgba(0,5,20,0.4)', borderRadius: '8px', padding: '10px 14px', marginBottom: '18px',
+                    background: 'rgba(0,5,20,0.4)', borderRadius: '8px', padding: '7px 12px', marginBottom: '12px',
                     border: '1px solid rgba(100,130,200,0.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                   }}>
-                    <span style={{ color: 'rgba(150,180,240,0.5)', fontSize: '12px', letterSpacing: '1px' }}>
-                      访客畅言余额：
-                    </span>
-                    <span style={{ color: guestMsgCount >= guestLimit ? 'rgba(255,130,100,0.7)' : '#7dd3fc', fontSize: '15px', marginLeft: '6px' }}>
+                    <span style={{ color: 'rgba(150,180,240,0.5)', fontSize: '11px', letterSpacing: '1px' }}>畅言余额：</span>
+                    <span style={{ color: guestMsgCount >= guestLimit ? 'rgba(255,130,100,0.7)' : '#7dd3fc', fontSize: '14px' }}>
                       {Math.max(0, guestLimit - guestMsgCount)} / {guestLimit} 次
                     </span>
                   </div>
                   <button
                     onClick={() => setShowLoginModal(true)}
                     style={{
-                      width: '100%', padding: '13px', borderRadius: '10px', border: 'none',
+                      width: '100%', padding: '10px', borderRadius: '10px', border: 'none',
                       background: 'linear-gradient(135deg, rgba(80,120,220,0.85), rgba(50,90,180,0.85))',
-                      color: '#fff', fontSize: '15px', fontFamily: 'inherit', letterSpacing: '4px',
+                      color: '#fff', fontSize: '14px', fontFamily: 'inherit', letterSpacing: '4px',
                       cursor: 'pointer', boxShadow: '0 2px 12px rgba(60,100,220,0.25)',
                     }}
                   >
@@ -2410,7 +2427,7 @@ export default function App() {
             )}
 
             {/* 页脚装饰 */}
-            <div style={{ textAlign: 'center', color: 'rgba(200,169,110,0.15)', fontSize: '12px', letterSpacing: '2px', paddingBottom: '8px' }}>
+            <div style={{ textAlign: 'center', color: 'rgba(200,169,110,0.15)', fontSize: '11px', letterSpacing: '2px', paddingBottom: '4px' }}>
               ※ 太虚书院 · 与古今先贤对话 ※
             </div>
           </div>
@@ -2437,7 +2454,7 @@ export default function App() {
       }}>
         {([
           { key: 'explore', label: '神游太虚', icon: '✦' },
-          { key: 'souls', label: '灵魂降临', icon: '☯' },
+          { key: 'souls', label: '太虚问道', icon: '☯' },
           { key: 'notes', label: '太虚笔谈', icon: '✍' },
           { key: 'profile', label: '灵　犀', icon: '◈' },
         ] as { key: 'explore' | 'souls' | 'notes' | 'profile'; label: string; icon: string }[]).map(tab => (
