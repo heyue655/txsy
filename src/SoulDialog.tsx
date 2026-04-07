@@ -5,6 +5,7 @@ interface Message {
   role: 'author' | 'user';
   content: string;
   isTyping?: boolean;
+  isError?: boolean;
   guestAuthor?: { name: string; color: string; title: string };
 }
 
@@ -143,6 +144,105 @@ async function saveMessage(
   }).catch(() => {});
 }
 
+// ── Lightweight Markdown renderer for AI replies ──────────────────────────
+function renderInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const regex = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`/g;
+  let last = 0;
+  let key = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    if (match[1] !== undefined) {
+      parts.push(<strong key={key++} style={{ color: '#fff', fontWeight: 'bold' }}>{match[1]}</strong>);
+    } else if (match[2] !== undefined) {
+      parts.push(<em key={key++} style={{ fontStyle: 'italic', opacity: 0.85 }}>{match[2]}</em>);
+    } else if (match[3] !== undefined) {
+      parts.push(<code key={key++} style={{ background: 'rgba(0,0,0,0.35)', borderRadius: '3px', padding: '1px 5px', fontSize: '0.82em', fontFamily: 'monospace', color: '#a8d8a8' }}>{match[3]}</code>);
+    }
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  if (parts.length === 0) return '';
+  if (parts.length === 1 && typeof parts[0] === 'string') return parts[0];
+  return <React.Fragment>{parts}</React.Fragment>;
+}
+
+function renderMarkdown(content: string, color: string): React.ReactNode {
+  const lines = content.split('\n');
+  const nodes: React.ReactNode[] = [];
+  let idx = 0;
+  while (idx < lines.length) {
+    const line = lines[idx];
+    // Fenced code block
+    if (line.trimStart().startsWith('```')) {
+      const codeLines: string[] = [];
+      idx++;
+      while (idx < lines.length && !lines[idx].trimStart().startsWith('```')) {
+        codeLines.push(lines[idx]);
+        idx++;
+      }
+      nodes.push(
+        <pre key={`cb${idx}`} style={{ background: 'rgba(0,0,0,0.35)', borderRadius: '6px', padding: '8px 12px', fontSize: '0.8rem', overflowX: 'auto', color: '#a8d8a8', margin: '6px 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          <code>{codeLines.join('\n')}</code>
+        </pre>
+      );
+      idx++; continue;
+    }
+    // H1–H3
+    const hm = line.match(/^(#{1,3}) (.+)/);
+    if (hm) {
+      const lvl = hm[1].length;
+      const sz = lvl === 1 ? '1.05rem' : lvl === 2 ? '0.98rem' : '0.92rem';
+      const mt = lvl === 1 ? '10px' : '7px';
+      nodes.push(<div key={`h${idx}`} style={{ fontSize: sz, fontWeight: 'bold', color, margin: `${mt} 0 3px`, letterSpacing: '1px' }}>{renderInline(hm[2])}</div>);
+      idx++; continue;
+    }
+    // Unordered list
+    if (/^[\-\*\+] /.test(line)) {
+      const items: string[] = [];
+      while (idx < lines.length && /^[\-\*\+] /.test(lines[idx])) { items.push(lines[idx].slice(2)); idx++; }
+      nodes.push(
+        <ul key={`ul${idx}`} style={{ paddingLeft: '1.3em', margin: '4px 0', listStyleType: 'disc' }}>
+          {items.map((it, j) => <li key={j} style={{ marginBottom: '3px', lineHeight: '1.7' }}>{renderInline(it)}</li>)}
+        </ul>
+      );
+      continue;
+    }
+    // Ordered list
+    if (/^\d+[\.\)] /.test(line)) {
+      const items: string[] = [];
+      while (idx < lines.length && /^\d+[\.\)] /.test(lines[idx])) { items.push(lines[idx].replace(/^\d+[\.\)] /, '')); idx++; }
+      nodes.push(
+        <ol key={`ol${idx}`} style={{ paddingLeft: '1.5em', margin: '4px 0' }}>
+          {items.map((it, j) => <li key={j} style={{ marginBottom: '3px', lineHeight: '1.7' }}>{renderInline(it)}</li>)}
+        </ol>
+      );
+      continue;
+    }
+    // Blockquote
+    if (line.startsWith('> ')) {
+      nodes.push(<blockquote key={`bq${idx}`} style={{ borderLeft: `3px solid ${color}55`, paddingLeft: '10px', margin: '4px 0', color: 'rgba(190,210,250,0.6)', fontStyle: 'italic' }}>{renderInline(line.slice(2))}</blockquote>);
+      idx++; continue;
+    }
+    // Horizontal rule
+    if (/^[\-\*\_]{3,}$/.test(line.trim())) {
+      nodes.push(<hr key={`hr${idx}`} style={{ border: 'none', borderTop: `1px solid ${color}30`, margin: '8px 0' }} />);
+      idx++; continue;
+    }
+    // Empty line
+    if (line.trim() === '') {
+      if (nodes.length > 0) nodes.push(<div key={`sp${idx}`} style={{ height: '0.5em' }} />);
+      idx++; continue;
+    }
+    // Normal paragraph
+    nodes.push(<div key={`p${idx}`} style={{ margin: '0 0 1px' }}>{renderInline(line)}</div>);
+    idx++;
+  }
+  return <React.Fragment>{nodes}</React.Fragment>;
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, guestMsgCount = 0, guestLimit = 3, onGuestLimitReached, onUserMessage, userScore, userDisplayName }) => {
   const [persona, setPersona] = useState<PersonaData | null>(null);
   const sc = book.soulColor;
@@ -163,6 +263,14 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
   // 记录笔谈生成时的消息数，用于判断是否有新对话
   const noteMessageCountRef = useRef<number>(0);
   const [isAskingQuestion, setIsAskingQuestion] = useState(false);
+  const [retryInfo, setRetryInfo] = useState<{
+    msgId: string;
+    history: { role: string; content: string }[];
+    type: 'normal' | 'guest';
+    guestTitle?: string;
+    guestAuthorName?: string;
+    guestColor?: string;
+  } | null>(null);
 
   // @ 提及其他作者
   const [showAtPicker, setShowAtPicker] = useState(false);
@@ -317,8 +425,9 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
       if (e.name === 'AbortError') return;
       setError(e.message || '链接中断');
       setMessages(prev =>
-        prev.map(m => m.id === msgId ? { ...m, content: '（灵魂链接中断，请稍后再试。）', isTyping: false } : m)
+        prev.map(m => m.id === msgId ? { ...m, content: '（灵魂链接中断，请稍后再试。）', isTyping: false, isError: true } : m)
       );
+      setRetryInfo({ msgId, history, type: 'normal' });
     } finally {
       abortRef.current = null;
     }
@@ -397,7 +506,8 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     } catch (e: any) {
       if (e.name === 'AbortError') return;
       setError(e.message || '魂魄连接中断');
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: '（魔力传递失败，请稍后再试。）', isTyping: false } : m));
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: '（魔力传递失败，请稍后再试。）', isTyping: false, isError: true } : m));
+      setRetryInfo({ msgId, history, type: 'guest', guestTitle, guestAuthorName, guestColor });
     } finally {
       abortRef.current = null;
     }
@@ -679,6 +789,27 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     }
   }, [messages, noteGenerated, doNewChat]);
 
+  const handleRetry = useCallback(async () => {
+    if (!retryInfo || isThinking) return;
+    const { msgId, history, type, guestTitle, guestAuthorName, guestColor } = retryInfo;
+    // Remove the failed message so the stream creates a fresh one
+    setMessages(prev => prev.filter(m => m.id !== msgId));
+    setRetryInfo(null);
+    setError('');
+    setIsThinking(true);
+    isSendingRef.current = true;
+    try {
+      if (type === 'guest' && guestTitle && guestAuthorName && guestColor) {
+        await streamChatAsGuest(guestTitle, guestAuthorName, guestColor, history);
+      } else {
+        await streamChat(history);
+      }
+    } finally {
+      setIsThinking(false);
+      isSendingRef.current = false;
+    }
+  }, [retryInfo, isThinking, streamChat, streamChatAsGuest]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showAtPicker) {
       const list = bookList.filter(b => !atSearch || b.title.includes(atSearch) || b.author.includes(atSearch)).slice(0, atSearch ? 20 : 5);
@@ -919,9 +1050,27 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
                   </span>
                 ) : (
                   <>
-                    {msg.content}
+                    {msg.role === 'author' && !msg.isTyping && !msg.isError
+                      ? renderMarkdown(msg.content, gc)
+                      : msg.content}
                     {msg.isTyping && (
                       <span style={{ opacity: 0.5, animation: 'cursor-blink 0.8s infinite' }}>▌</span>
+                    )}
+                    {msg.isError && retryInfo?.msgId === msg.id && (
+                      <div style={{ marginTop: '10px' }}>
+                        <button
+                          onClick={handleRetry}
+                          style={{
+                            padding: '5px 14px', borderRadius: '14px',
+                            background: `${gc}18`, border: `1px solid ${gc}55`,
+                            color: gc, fontSize: '0.72rem', cursor: 'pointer',
+                            letterSpacing: '1px', fontFamily: '"KaiTi","STKaiti",serif',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={e => { (e.target as HTMLElement).style.background = `${gc}30`; }}
+                          onMouseLeave={e => { (e.target as HTMLElement).style.background = `${gc}18`; }}
+                        >↺ 重新连接</button>
+                      </div>
                     )}
                   </>
                 )}
