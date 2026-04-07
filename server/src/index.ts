@@ -482,12 +482,21 @@ ${dialogText}
       }),
     });
 
+    // Read body as text first so HTML error pages don't throw a SyntaxError
+    const bodyText = await response.text();
     if (!response.ok) {
-      const err: any = await response.json().catch(() => ({}));
-      return res.status(500).json({ code: 1, message: err.error?.message || '大模型调用失败' });
+      let errMsg = '大模型调用失败';
+      try { errMsg = JSON.parse(bodyText).error?.message || errMsg; } catch {}
+      return res.status(500).json({ code: 1, message: errMsg });
     }
 
-    const data: any = await response.json();
+    let data: any;
+    try {
+      data = JSON.parse(bodyText);
+    } catch {
+      console.error('[笔谈] LLM 返回非 JSON 响应:', bodyText.slice(0, 300));
+      return res.status(502).json({ code: 1, message: '大模型响应格式异常，请检查 LLM 配置是否正确' });
+    }
     const raw = data.choices?.[0]?.message?.content || '';
 
     let summary = '今日笔谈：对话内容丰富，思维活跃，与先贤深入探讨了相关思想。';

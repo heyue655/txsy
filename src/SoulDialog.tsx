@@ -736,6 +736,10 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, bookTitle: book.title, conversationId: conversationIdRef.current, userId: userId || null }),
       });
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        throw new Error('服务暂时不可用，请稍后重试（' + res.status + '）');
+      }
       const json = await res.json();
       if (json.code !== 0) throw new Error(json.message || '生成失败');
       setNoteGenerated(true);
