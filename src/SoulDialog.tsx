@@ -169,7 +169,8 @@ function renderInline(text: string): React.ReactNode {
 }
 
 function renderMarkdown(content: string, color: string): React.ReactNode {
-  const lines = content.split('\n');
+  // Normalize line endings (some LLMs return \r\n or \r)
+  const lines = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const nodes: React.ReactNode[] = [];
   let idx = 0;
   while (idx < lines.length) {
@@ -189,8 +190,8 @@ function renderMarkdown(content: string, color: string): React.ReactNode {
       );
       idx++; continue;
     }
-    // H1–H3
-    const hm = line.match(/^(#{1,3}) (.+)/);
+    // H1–H3 (allow optional space between # and text)
+    const hm = line.match(/^(#{1,3}) ?(.+)/);
     if (hm) {
       const lvl = hm[1].length;
       const sz = lvl === 1 ? '1.05rem' : lvl === 2 ? '0.98rem' : '0.92rem';
@@ -198,23 +199,25 @@ function renderMarkdown(content: string, color: string): React.ReactNode {
       nodes.push(<div key={`h${idx}`} style={{ fontSize: sz, fontWeight: 'bold', color, margin: `${mt} 0 3px`, letterSpacing: '1px' }}>{renderInline(hm[2])}</div>);
       idx++; continue;
     }
-    // Unordered list
-    if (/^[\-\*\+] /.test(line)) {
+    // Unordered list (-, *, +, •, · followed by space)
+    if (/^[-*+•·] /.test(line)) {
       const items: string[] = [];
-      while (idx < lines.length && /^[\-\*\+] /.test(lines[idx])) { items.push(lines[idx].slice(2)); idx++; }
+      const ulRe = /^[-*+•·] /;
+      while (idx < lines.length && ulRe.test(lines[idx])) { items.push(lines[idx].replace(ulRe, '')); idx++; }
       nodes.push(
-        <ul key={`ul${idx}`} style={{ paddingLeft: '1.3em', margin: '4px 0', listStyleType: 'disc' }}>
+        <ul key={`ul${idx}`} style={{ paddingLeft: '1.5em', margin: '4px 0', listStyleType: 'disc', textAlign: 'left', listStylePosition: 'outside' }}>
           {items.map((it, j) => <li key={j} style={{ marginBottom: '3px', lineHeight: '1.7' }}>{renderInline(it)}</li>)}
         </ul>
       );
       continue;
     }
-    // Ordered list
-    if (/^\d+[\.\)] /.test(line)) {
+    // Ordered list (1. / 1) / 1、 with optional space)
+    if (/^\d+[.)、]/.test(line)) {
       const items: string[] = [];
-      while (idx < lines.length && /^\d+[\.\)] /.test(lines[idx])) { items.push(lines[idx].replace(/^\d+[\.\)] /, '')); idx++; }
+      const olRe = /^\d+[.)、]\s*/;
+      while (idx < lines.length && /^\d+[.)、]/.test(lines[idx])) { items.push(lines[idx].replace(olRe, '')); idx++; }
       nodes.push(
-        <ol key={`ol${idx}`} style={{ paddingLeft: '1.5em', margin: '4px 0' }}>
+        <ol key={`ol${idx}`} style={{ paddingLeft: '1.5em', margin: '4px 0', textAlign: 'left', listStylePosition: 'outside' }}>
           {items.map((it, j) => <li key={j} style={{ marginBottom: '3px', lineHeight: '1.7' }}>{renderInline(it)}</li>)}
         </ol>
       );
@@ -1037,6 +1040,8 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
                 color: msg.role === 'author' ? '#ddeeff' : 'rgba(195,210,240,0.85)',
                 fontSize: '0.88rem', lineHeight: '1.8', letterSpacing: '0.5px',
                 boxShadow: msg.role === 'author' ? `0 2px 18px ${gc}18` : 'none',
+                textAlign: 'left',
+                wordBreak: 'break-word',
               }}>
                 {msg.isTyping && !msg.content ? (
                   <span style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
