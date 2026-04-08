@@ -1547,7 +1547,7 @@ export default function App() {
   }, [booksData, authUser, profileStats]);
 
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative', background: 'black' }}>
+    <div style={{ width: '100vw', height: '100dvh', overflow: 'hidden', position: 'relative', background: 'black' }}>
       {/* 主场景 */}
       <Canvas
         style={{ display: activeTab === 'explore' ? 'block' : 'none' }}
@@ -2555,7 +2555,7 @@ export default function App() {
           onClick={() => setShowDean(true)}
           title="召唤院长"
           style={{
-            position: 'fixed', right: '18px', bottom: '78px', zIndex: 6500,
+            position: 'fixed', right: '18px', bottom: 'calc(60px + env(safe-area-inset-bottom) + 18px)', zIndex: 6500,
             width: '52px', height: '52px', borderRadius: '50%',
             background: 'linear-gradient(145deg, #c8a96e, #8a6830)',
             border: '1.5px solid rgba(200,169,110,0.6)',
