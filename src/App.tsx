@@ -1751,7 +1751,7 @@ export default function App() {
           overflowY: 'auto',
           fontFamily: '"KaiTi", "STKaiti", serif',
           display: 'flex', flexDirection: 'column',
-          paddingBottom: '60px',
+          paddingBottom: 'calc(60px + env(safe-area-inset-bottom))',
         }}>
           {/* 标题栏 */}
           <div style={{
@@ -1844,7 +1844,7 @@ export default function App() {
           background: 'linear-gradient(180deg, #000510 0%, #020a1a 50%, #000510 100%)',
           fontFamily: '"KaiTi", "STKaiti", serif',
           display: 'flex', flexDirection: 'column',
-          paddingBottom: '60px',
+          paddingBottom: 'calc(60px + env(safe-area-inset-bottom))',
         }}>
           {/* 标题栏 */}
           <div style={{
@@ -2002,7 +2002,7 @@ export default function App() {
           background: 'linear-gradient(180deg, #000510 0%, #020a1a 60%, #000510 100%)',
           fontFamily: '"KaiTi", "STKaiti", serif',
           display: 'flex', flexDirection: 'column',
-          paddingBottom: '60px',
+          paddingBottom: 'calc(60px + env(safe-area-inset-bottom))',
           overflowY: 'auto',
         }}>
           {/* 标题栏 */}
@@ -2444,13 +2444,15 @@ export default function App() {
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        height: '60px',
+        height: 'calc(60px + env(safe-area-inset-bottom))',
         background: 'linear-gradient(180deg, rgba(4,10,28,0.0) 0%, rgba(8,16,40,0.75) 25%, rgba(6,12,32,0.92) 100%)',
         backdropFilter: 'blur(16px)',
         borderTop: '1px solid rgba(80,120,200,0.18)',
         boxShadow: '0 -4px 24px rgba(0,0,0,0.5)',
         fontFamily: '"KaiTi", "STKaiti", serif',
         paddingBottom: 'env(safe-area-inset-bottom)',
+        alignItems: 'flex-start',
+        paddingTop: '6px',
       }}>
         {([
           { key: 'explore', label: '神游太虚', icon: '✦' },
@@ -2485,18 +2487,18 @@ export default function App() {
               cursor: 'pointer',
               color: activeTab === tab.key ? '#7dd3fc' : 'rgba(210,225,248,0.82)',
               transition: 'color 0.3s',
-              padding: '4px 16px',
+              padding: '4px 12px',
             }}
           >
             <span style={{
-              fontSize: '1.2rem',
+              fontSize: '1.4rem',
               filter: activeTab === tab.key ? 'drop-shadow(0 0 6px rgba(120,200,255,0.7))' : 'none',
               transition: 'filter 0.3s',
             }}>
               {tab.icon}
             </span>
             <span style={{
-              fontSize: '0.65rem',
+              fontSize: '0.7rem',
               letterSpacing: '2px',
               textShadow: activeTab === tab.key ? '0 0 8px rgba(100,180,255,0.6)' : 'none',
             }}>
