@@ -13,9 +13,12 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      # MySQL 连接串 — 修改为你服务器上的实际地址
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-https://txsy.pinyanzhi.net}
+      SSO_CENTER_URL: ${SSO_CENTER_URL:-https://box.pinyanzhi.net}
+      SSO_APP_KEY: ${SSO_APP_KEY:-txsy}
+      SSO_APP_SECRET: ${SSO_APP_SECRET}
     # 如果数据库也在同一台服务器上可以加 depends_on
     # depends_on:
     #   - db
