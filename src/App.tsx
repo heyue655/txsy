@@ -898,6 +898,18 @@ export default function App() {
 
   // ── 认证初始化 ──
   useEffect(() => {
+    // SSO 单点登录：从门户跳转过来时 URL 带 sso_token
+    const _ssoParams = new URLSearchParams(window.location.search);
+    const _ssoToken = _ssoParams.get('sso_token');
+    const _ssoUser = _ssoParams.get('sso_user');
+    if (_ssoToken && _ssoUser) {
+      localStorage.setItem('txbt_token', _ssoToken);
+      localStorage.setItem('txbt_user', _ssoUser);
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('sso_token');
+      clean.searchParams.delete('sso_user');
+      window.history.replaceState(null, '', clean.pathname + (clean.search || ''));
+    }
     // 恢复已登录用户
     const token = localStorage.getItem('txbt_token');
     const userStr = localStorage.getItem('txbt_user');

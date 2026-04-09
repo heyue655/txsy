@@ -680,6 +680,63 @@ app.post('/api/h5/auth/login', async (req, res) => {
   }
 });
 
+// ─── SSO 单点登录回调 ─────────────────────────────────
+app.get('/api/h5/auth/sso-callback', async (req, res) => {
+  const SSO_URL = process.env.SSO_CENTER_URL || 'http://localhost:3003';
+  const APP_KEY = process.env.SSO_APP_KEY || 'txsy';
+  const APP_SECRET = process.env.SSO_APP_SECRET || '';
+  const CLIENT = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+  try {
+    const { code } = req.query;
+    if (!code) return res.status(400).send('缺少授权码');
+
+    const tokenRes = await fetch(`${SSO_URL}/sso/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, app_key: APP_KEY, app_secret: APP_SECRET }),
+    });
+    const tokenData = await tokenRes.json() as any;
+    if (tokenData.code !== 0) return res.redirect(`${CLIENT}/?sso_error=${encodeURIComponent(tokenData.message)}`);
+
+    const ssoUser = tokenData.data;
+    let localUser;
+
+    // 1. 已有绑定
+    if (ssoUser.binding?.local_user_id) {
+      localUser = await prisma.user.findUnique({ where: { id: parseInt(ssoUser.binding.local_user_id) } });
+    }
+    // 2. 按用户名匹配
+    if (!localUser && ssoUser.username) {
+      localUser = await prisma.user.findUnique({ where: { username: ssoUser.username } });
+    }
+    // 3. 创建新用户
+    if (!localUser) {
+      const uname = ssoUser.username || ssoUser.nickname || `sso_${ssoUser.sso_user_id}`;
+      const pwd = await bcrypt.hash(String(Math.random()) + Date.now(), 10);
+      localUser = await prisma.user.create({ data: { username: uname, password: pwd, nickname: ssoUser.nickname || uname, ssoUserId: ssoUser.sso_user_id } });
+    }
+
+    // 回写 ssoUserId
+    if (!localUser.ssoUserId) {
+      await prisma.user.update({ where: { id: localUser.id }, data: { ssoUserId: ssoUser.sso_user_id } });
+    }
+
+    // 通知 SSO 中心绑定关系
+    fetch(`${SSO_URL}/sso/bind-notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app_key: APP_KEY, app_secret: APP_SECRET, sso_user_id: ssoUser.sso_user_id, local_user_id: String(localUser.id) }),
+    }).catch(() => {});
+
+    // 签发本地 JWT
+    const token = jwt.sign({ id: localUser.id, username: localUser.username }, JWT_SECRET, { expiresIn: '90d' });
+    const userJson = encodeURIComponent(JSON.stringify({ id: localUser.id, username: localUser.username, nickname: localUser.nickname, inviteCode: localUser.inviteCode }));
+    res.redirect(`${CLIENT}/?sso_token=${token}&sso_user=${userJson}`);
+  } catch (e: any) {
+    res.redirect(`${CLIENT}/?sso_error=${encodeURIComponent(e.message)}`);
+  }
+});
+
 // 修改昵称（需要登录）
 app.put('/api/h5/auth/nickname', async (req, res) => {
   try {

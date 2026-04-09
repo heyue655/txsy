@@ -109,6 +109,7 @@ model User {
   password   String   @db.VarChar(100)   /// bcrypt hash
   nickname   String?  @db.VarChar(50)
   inviteCode String?  @unique @db.VarChar(16)  /// 专属邀请码（注册时自动生成）
+  ssoUserId  Int?     @map("sso_user_id")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
