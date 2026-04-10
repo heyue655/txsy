@@ -1967,41 +1967,55 @@ export default function App() {
           style={{
             position: 'fixed', inset: 0, zIndex: 30000,
             background: 'rgba(0,4,16,0.92)', backdropFilter: 'blur(10px)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '16px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            padding: '0',
           }}
         >
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '480px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {/* 预览图 */}
-            <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(200,169,110,0.25)', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
-              <img src={shareImage.dataUrl} alt="分享图" style={{ width: '100%', display: 'block' }} />
+          <div onClick={e => e.stopPropagation()} style={{
+            width: '100%', maxWidth: '480px', display: 'flex', flexDirection: 'column',
+            height: '100%', overflow: 'hidden',
+          }}>
+            {/* 可滚动的预览图区域 */}
+            <div style={{
+              flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+              padding: '16px 16px 0',
+            }}>
+              <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(200,169,110,0.25)', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
+                <img src={shareImage.dataUrl} alt="分享图" style={{ width: '100%', display: 'block' }} />
+              </div>
             </div>
-            {/* 操作按钮 */}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <a
-                href={shareImage.dataUrl}
-                download={`太虚书院-笔谈-${shareImage.noteId}.png`}
-                style={{
-                  padding: '10px 28px', borderRadius: '24px',
-                  background: 'linear-gradient(135deg, #c8a96ecc, #c8a96e88)',
-                  color: '#fff', fontSize: '0.82rem', letterSpacing: '2px',
-                  textDecoration: 'none', fontFamily: '"KaiTi","STKaiti",serif',
-                  boxShadow: '0 0 18px rgba(200,169,110,0.35)',
-                }}
-              >保存图片</a>
-              <button
-                onClick={() => setShareImage(null)}
-                style={{
-                  padding: '10px 24px', borderRadius: '24px',
-                  background: 'rgba(30,45,80,0.6)', border: '1px solid rgba(80,110,180,0.35)',
-                  color: 'rgba(180,200,240,0.7)', fontSize: '0.82rem',
-                  cursor: 'pointer', letterSpacing: '2px',
-                  fontFamily: '"KaiTi","STKaiti",serif',
-                }}
-              >关闭</button>
-            </div>
-            <div style={{ textAlign: 'center', color: 'rgba(150,170,210,0.3)', fontSize: '0.62rem' }}>
-              长按图片也可保存到相册
+            {/* 固定在底部的操作按钮 */}
+            <div style={{
+              flexShrink: 0, padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
+              background: 'linear-gradient(0deg, rgba(0,4,16,0.98) 60%, rgba(0,4,16,0) 100%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+            }}>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                <a
+                  href={shareImage.dataUrl}
+                  download={`太虚书院-笔谈-${shareImage.noteId}.png`}
+                  style={{
+                    padding: '10px 28px', borderRadius: '24px',
+                    background: 'linear-gradient(135deg, #c8a96ecc, #c8a96e88)',
+                    color: '#fff', fontSize: '0.82rem', letterSpacing: '2px',
+                    textDecoration: 'none', fontFamily: '"KaiTi","STKaiti",serif',
+                    boxShadow: '0 0 18px rgba(200,169,110,0.35)',
+                  }}
+                >保存图片</a>
+                <button
+                  onClick={() => setShareImage(null)}
+                  style={{
+                    padding: '10px 24px', borderRadius: '24px',
+                    background: 'rgba(30,45,80,0.6)', border: '1px solid rgba(80,110,180,0.35)',
+                    color: 'rgba(180,200,240,0.7)', fontSize: '0.82rem',
+                    cursor: 'pointer', letterSpacing: '2px',
+                    fontFamily: '"KaiTi","STKaiti",serif',
+                  }}
+                >关闭</button>
+              </div>
+              <div style={{ textAlign: 'center', color: 'rgba(150,170,210,0.3)', fontSize: '0.62rem' }}>
+                长按图片也可保存到相册
+              </div>
             </div>
           </div>
         </div>

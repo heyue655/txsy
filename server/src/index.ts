@@ -460,6 +460,25 @@ app.post('/api/h5/notes/generate', async (req, res) => {
       return `${authorName}: ${m.content}`;
     }).join('\n');
 
+    // 统计发言人数，动态调整观点总结字数策略
+    const speakerSet = new Set<string>();
+    speakerSet.add('读者');
+    speakerSet.add(authorName);
+    for (const m of msgs) {
+      if (m.role === 'guest' && (m as any).speakerName) speakerSet.add((m as any).speakerName);
+    }
+    const speakerCount = speakerSet.size;
+    const isCompact = speakerCount > 3;
+    const contentMinLen = isCompact ? 80 : 120;
+    const contentMaxLen = isCompact ? 100 : 200;
+    const contentLenHint = isCompact
+      ? `- 每人的 content 字数控制在${contentMinLen}~${contentMaxLen}字，要求高度凝练
+- 写法要求：用"一句核心论点 + 一句关键论据/洞见"的结构，确保最精华的观点不被遗漏
+- 优先保留该发言者最具辨识度、最有思想深度的观点，次要内容果断省略`
+      : `- 每人的 content 字数在${contentMinLen}~${contentMaxLen}字之间，务必充分展现其思想深度，不得省略重要观点
+- 涵盖其在本次对话中的核心观点、思想精华和主要论点`;
+    const exampleContent = isCompact ? `（${contentMinLen}~${contentMaxLen}字的精炼观点总结）` : `（${contentMinLen}字以上的读者观点总结）`;
+
     const prompt = `你是一位学识渊博的太虚书院笔谈总结助手。请根据以下对话内容，完成三个任务：
 
 【对话内容】
@@ -480,16 +499,16 @@ ${dialogText}
 - 参与度和积极性
 
 【任务三：发言者观点总结（用于分享图）】
-对本次对话中每位发言者（读者、${authorName}，以及出现的访客先贤）各自综合整理一条总结，要求：
-- 每人只出一条，涵盖其在本次对话中的核心观点、思想精华和主要论点
+本次对话共有${speakerCount}位发言者。对每位发言者（读者、${authorName}，以及出现的访客先贤）各自综合整理一条总结，要求：
+- 每人只出一条
 - 在忠实原意的基础上进行文学润色，使语言典雅有力、富有哲思，避免平铺直叙
-- 每人的 content 字数不少于100字，务必充分展现其思想深度，不得省略重要观点
+${contentLenHint}
 - speaker：发言者名称（读者写"读者"，先贤写"${authorName}"，访客先贤写其姓名）
 - role：读者写 "user"，先贤和访客先贤写 "author"
 - 顺序：读者在前，${authorName}在后，其他访客依次排列
 
 请严格按照以下JSON格式返回（不要有任何其他内容）：
-{"summary":"笔谈内容...","score":3,"highlights":[{"speaker":"读者","role":"user","content":"（100字以上的读者观点总结）"},{"speaker":"${authorName}","role":"author","content":"（100字以上的先贤观点总结）"}]}`;
+{"summary":"笔谈内容...","score":3,"highlights":[{"speaker":"读者","role":"user","content":"${exampleContent}"},{"speaker":"${authorName}","role":"author","content":"${exampleContent}"}]}`;
 
     const response = await fetch(config.endpoint, {
       method: 'POST',
