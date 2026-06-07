@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import booksRouter from './routes/books';
 import llmRouter from './routes/llm';
 import personaRouter from './routes/persona';
+import charactersRouter from './routes/characters';
 import path from 'path';
 
 const prisma = new PrismaClient();
@@ -26,6 +27,7 @@ app.use('/admin', express.static(path.join(__dirname, '../admin')));
 app.use('/api/books', booksRouter);
 app.use('/api/llm', llmRouter);
 app.use('/api/persona', personaRouter);
+app.use('/api/h5', charactersRouter);
 
 // H5 前端接口：获取书籍列表（含 persona）
 app.get('/api/h5/books', async (_req, res) => {
@@ -61,6 +63,41 @@ app.get('/api/h5/llm-config', async (_req, res) => {
   }
 });
 
+// 辅助函数：生成角色灵魂档案
+async function generateCharacterPersona(bookTitle: string, charName: string) {
+  const config = await prisma.lLMConfig.findFirst({ where: { isActive: true } });
+  if (!config) throw new Error('未配置大模型');
+
+  const prompt = `你是太虚书院的角色档案生成助手。请根据书籍《${bookTitle}》和角色名"${charName}"，生成该角色的灵魂档案。
+要求：
+1. 身份设定 (identity): 10-20字
+2. 性格特征 (personality): 20-50字
+3. 核心观点 (coreViews): JSON数组，3-5条
+4. 说话风格 (speakingStyle): 10-20字
+5. 知识边界 (knowledgeLimits): 10-20字
+
+返回纯 JSON 格式，不要包含其他内容。`;
+
+  const response = await fetch(config.endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.apiKey}` },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 1000,
+    })
+  });
+  
+  if (!response.ok) throw new Error(`LLM 调用失败: ${response.status}`);
+  const data: any = await response.json();
+  const content = data.choices?.[0]?.message?.content || '';
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('LLM 返回格式错误');
+  
+  return JSON.parse(jsonMatch[0]);
+}
+
 // H5 前端接口：AI 对话代理 —— SSE 流式输出
 app.post('/api/h5/chat', async (req, res) => {
   try {
@@ -68,7 +105,7 @@ app.post('/api/h5/chat', async (req, res) => {
     if (!config) {
       return res.status(400).json({ code: 1, message: '未配置大模型' });
     }
-    const { messages, bookId, bookTitle, sessionId, guestBookTitle, guestBookId } = req.body;
+    const { messages, bookId, bookTitle, sessionId, guestBookTitle, guestBookId, characterId } = req.body;
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ code: 1, message: 'messages 参数缺失' });
     }
@@ -78,6 +115,31 @@ app.post('/api/h5/chat', async (req, res) => {
     let systemPrompt = '你是一位古代文学大师，请与用户对话。';
     let book: any = null;
     let mainBook: any = null; // 主线书籍（@提及时用于提供对话上下文）
+    let activeCharacter: any = null; // 当前对话角色
+
+    // 处理角色选择与延迟初始化
+    if (characterId) {
+      const cId = parseInt(characterId);
+      if (!isNaN(cId)) {
+        let char = await prisma.character.findUnique({ where: { id: cId } });
+        if (char && char.status === 'pending') {
+          // 触发初始化
+          await prisma.character.update({ where: { id: cId }, data: { status: 'initializing' } });
+          try {
+            const persona = await generateCharacterPersona(bookTitle || char.name, char.name);
+            char = await prisma.character.update({
+              where: { id: cId },
+              data: { ...persona, status: 'ready' }
+            });
+          } catch (e) {
+            // 初始化失败，回滚状态
+            await prisma.character.update({ where: { id: cId }, data: { status: 'pending' } }).catch(() => {});
+            throw e;
+          }
+        }
+        activeCharacter = char;
+      }
+    }
     if (guestBookTitle) {
       // @提及：加载被引用者的灵魂档案
       const cleanGuest = guestBookTitle.replace(/《|》/g, '');
@@ -106,8 +168,25 @@ app.post('/api/h5/chat', async (req, res) => {
       });
     }
 
+    // 角色对话处理
+    if (activeCharacter) {
+      let coreViews: string[] = [];
+      try { coreViews = JSON.parse(activeCharacter.coreViews || '[]'); } catch { coreViews = []; }
+      systemPrompt = `你是${activeCharacter.name}，${activeCharacter.identity || '书中角色'}。
+你的灵魂档案如下：
+性格特征：${activeCharacter.personality || '未知'}
+核心观点：${coreViews.join('；')}
+知识边界：${activeCharacter.knowledgeLimits || '未知'}
+说话风格：${activeCharacter.speakingStyle || '未知'}
+
+你正在与一位现代读者进行"灵魂交流"。
+规则：
+- 始终以第一人称作为${activeCharacter.name}回答，保持身份和知识边界。
+- 与读者探讨书中的观点，或者向读者进一步解释。
+- 回答控制在20~500字以内。`;
+    }
     // 院长特殊处理
-    if (!book && (bookTitle === '__dean__' || sessionId === '__dean__')) {
+    else if (!book && (bookTitle === '__dean__' || sessionId === '__dean__')) {
       let dean = await prisma.deanConfig.findFirst({ where: { isActive: true } });
       if (!dean) {
         dean = await prisma.deanConfig.create({ data: DEAN_DEFAULT });

@@ -11,6 +11,7 @@
 | [features/auth.md](./features/auth.md) | 用户认证功能规格 | 2026-06-05 |
 | [features/soul-dialog.md](./features/soul-dialog.md) | 灵魂对话功能规格 | 2026-06-05 |
 | [features/books.md](./features/books.md) | 书籍管理功能规格 | 2026-06-05 |
+| [features/character-dialog.md](./features/character-dialog.md) | 书中角色对话功能规格 | 2026-06-07 |
 
 ## 关键词索引
 
@@ -20,3 +21,4 @@
 - **数据库/Prisma/MySQL** → [architecture.md](./architecture.md)
 - **React/Three.js/前端** → [architecture.md](./architecture.md)
 - **API接口/路由** → [api.md](./api.md)
+- **角色/延迟初始化/Character** → [features/character-dialog.md](./features/character-dialog.md)

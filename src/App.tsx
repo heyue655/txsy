@@ -868,7 +868,9 @@ export default function App() {
   const [nicknameEditing, setNicknameEditing] = useState(false);
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [showRules, setShowRules] = useState(false);
-  const [browserToolbarHeight, setBrowserToolbarHeight] = useState(0);
+  const [showBrowserWarning, setShowBrowserWarning] = useState(false);
+  const [characters, setCharacters] = useState<any[]>([]);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
 
   // ── 灵魂段位 ──
   const SOUL_RANKS = [
@@ -897,21 +899,16 @@ export default function App() {
 
   const VISIBLE_SLOTS = 15;
 
-  // ── 第三方浏览器底部工具栏高度检测 ──
+  // ── 第三方浏览器检测 ─
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => {
-      const offset = window.innerHeight - vv.height - vv.offsetTop;
-      setBrowserToolbarHeight(Math.max(0, Math.round(offset)));
-    };
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
-    update();
-    return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
-    };
+    const ua = navigator.userAgent.toLowerCase();
+    const isWechat = ua.includes('micromessenger');
+    const isDingtalk = ua.includes('dingtalk');
+    const isThirdPartyBrowser = isWechat || isDingtalk;
+
+    if (isThirdPartyBrowser) {
+      setShowBrowserWarning(true);
+    }
   }, []);
 
   // ── 认证初始化 ──
@@ -1069,6 +1066,19 @@ export default function App() {
     () => booksData.find((b: any) => b.id === focusedBookId) || null,
     [focusedBookId, booksData]
   );
+
+  // 获取角色列表
+  useEffect(() => {
+    if (focusedBook) {
+      fetch(`/api/h5/books/${focusedBook.id}/characters`)
+        .then(r => r.json())
+        .then(j => { if (j.code === 0) setCharacters(j.data || []); })
+        .catch(() => {});
+    } else {
+      setCharacters([]);
+      setSelectedCharacterId(null);
+    }
+  }, [focusedBook]);
 
   // 书籍加载后初始化可视槽位（错开 z 位置依次浮现）
   useEffect(() => {
@@ -1722,7 +1732,7 @@ export default function App() {
         const onDismissCard = focusedBook ? handleClearFocus : handleDismiss;
         return (
           <div style={{
-            position: 'fixed', bottom: `calc(72px + ${browserToolbarHeight}px)`, left: '50%',
+            position: 'fixed', bottom: '72px', left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 5000,
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
@@ -1755,6 +1765,39 @@ export default function App() {
               color: 'rgba(210,230,255,0.72)', fontSize: '0.72rem',
               letterSpacing: '2px', marginTop: '-4px',
             }}>{target.author} · {target.era}</div>
+            
+            {/* 角色选择器 */}
+            {characters.length > 0 && (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '90%' }}>
+                <div 
+                  onClick={() => setSelectedCharacterId(null)}
+                  style={{
+                    padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem',
+                    background: !selectedCharacterId ? 'rgba(200,169,110,0.3)' : 'rgba(255,255,255,0.08)',
+                    color: !selectedCharacterId ? '#c8a96e' : 'rgba(255,255,255,0.5)',
+                    cursor: 'pointer', border: '1px solid rgba(200,169,110,0.3)',
+                    transition: 'all 0.2s'
+                  }}
+                >作者</div>
+                {characters.map(c => (
+                  <div 
+                    key={c.id}
+                    onClick={() => setSelectedCharacterId(c.id)}
+                    style={{
+                      padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem',
+                      background: selectedCharacterId === c.id ? 'rgba(200,169,110,0.3)' : 'rgba(255,255,255,0.08)',
+                      color: selectedCharacterId === c.id ? '#c8a96e' : 'rgba(255,255,255,0.5)',
+                      cursor: 'pointer', border: '1px solid rgba(200,169,110,0.3)',
+                      transition: 'all 0.2s',
+                      opacity: c.status === 'initializing' ? 0.5 : 1
+                    }}
+                  >
+                    {c.name} {c.status === 'pending' && '✨'}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* 按钮行 */}
             <div style={{ marginTop: '2px' }}>
               <div
@@ -2481,20 +2524,20 @@ export default function App() {
       {/* ===== 底部 Tab 菜单 ===== */}
       <div style={{
         position: 'fixed',
-        bottom: `${browserToolbarHeight}px`,
+        bottom: 0,
         left: 0,
         right: 0,
         zIndex: 7000,
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        height: `calc(60px + env(safe-area-inset-bottom) + ${browserToolbarHeight}px)`,
+        height: 'calc(60px + env(safe-area-inset-bottom))',
         background: 'linear-gradient(180deg, rgba(4,10,28,0.0) 0%, rgba(8,16,40,0.75) 25%, rgba(6,12,32,0.92) 100%)',
         backdropFilter: 'blur(16px)',
         borderTop: '1px solid rgba(80,120,200,0.18)',
         boxShadow: '0 -4px 24px rgba(0,0,0,0.5)',
         fontFamily: '"KaiTi", "STKaiti", serif',
-        paddingBottom: `calc(env(safe-area-inset-bottom) + ${browserToolbarHeight}px)`,
+        paddingBottom: 'env(safe-area-inset-bottom)',
         alignItems: 'flex-start',
         paddingTop: '6px',
       }}>
@@ -2578,6 +2621,7 @@ export default function App() {
           onUserMessage={handleGuestMessage}
           userScore={profileStats?.totalScore}
           userDisplayName={authUser ? (authUser.nickname || authUser.username) : undefined}
+          characterId={selectedCharacterId}
         />
       )}
 
@@ -2599,7 +2643,7 @@ export default function App() {
           onClick={() => setShowDean(true)}
           title="召唤院长"
           style={{
-            position: 'fixed', right: '18px', bottom: `calc(60px + env(safe-area-inset-bottom) + 18px + ${browserToolbarHeight}px)`, zIndex: 6500,
+            position: 'fixed', right: '18px', bottom: 'calc(60px + env(safe-area-inset-bottom) + 18px)', zIndex: 6500,
             width: '52px', height: '52px', borderRadius: '50%',
             background: 'linear-gradient(145deg, #c8a96e, #8a6830)',
             border: '1.5px solid rgba(200,169,110,0.6)',
@@ -2620,6 +2664,48 @@ export default function App() {
           50% { box-shadow: 0 0 32px rgba(200,169,110,0.75), 0 4px 24px rgba(0,0,0,0.6), 0 0 0 6px rgba(200,169,110,0.12); }
         }
       `}</style>
+
+      {/* ===== 第三方浏览器提示遮罩 ===== */}
+      {showBrowserWarning && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 99999,
+          background: 'rgba(2,5,16,0.96)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: '40px 24px',
+          fontFamily: '"KaiTi", "STKaiti", serif',
+        }}>
+          <div style={{
+            maxWidth: '320px', textAlign: 'center',
+            background: 'rgba(10,20,50,0.8)',
+            borderRadius: '20px', padding: '36px 28px',
+            border: '1px solid rgba(200,169,110,0.3)',
+            boxShadow: '0 0 40px rgba(200,169,110,0.15)',
+          }}>
+            <div style={{ fontSize: '2.4rem', marginBottom: '16px' }}></div>
+            <div style={{
+              color: '#c8a96e', fontSize: '1.15rem', letterSpacing: '4px', marginBottom: '16px',
+              textShadow: '0 0 12px rgba(200,169,110,0.5)',
+            }}>温馨提示</div>
+            <div style={{
+              color: 'rgba(210,230,255,0.8)', fontSize: '0.88rem', lineHeight: 1.9, marginBottom: '24px',
+            }}>
+              当前浏览器无法完整显示页面内容。<br/>
+              请点击右上角 <span style={{ color: '#7dd3fc' }}>···</span><br/>
+              选择「在浏览器中打开」
+            </div>
+            <div
+              onClick={() => setShowBrowserWarning(false)}
+              style={{
+                padding: '10px 36px', borderRadius: '24px',
+                background: 'linear-gradient(135deg, rgba(200,169,110,0.3), rgba(200,169,110,0.1))',
+                border: '1px solid rgba(200,169,110,0.5)',
+                color: '#c8a96e', fontSize: '0.9rem', letterSpacing: '3px',
+                cursor: 'pointer',
+              }}
+            >我已知晓</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

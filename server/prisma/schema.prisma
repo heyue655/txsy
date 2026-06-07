@@ -23,8 +23,29 @@ model Book {
   updatedAt   DateTime @updatedAt
 
   persona AuthorPersona?
+  characters Character[]
 
   @@map("books")
+}
+
+/// 书中角色
+model Character {
+  id              Int      @id @default(autoincrement())
+  bookId          Int
+  name            String   @db.VarChar(50)   /// 角色名
+  status          String   @db.VarChar(20) @default("pending") /// pending, initializing, ready
+  identity        String?  @db.Text          /// 身份设定
+  personality     String?  @db.Text          /// 性格特征
+  coreViews       String?  @db.Text          /// JSON array - 核心观点
+  knowledgeLimits String?  @db.Text          /// 知识边界
+  speakingStyle   String?  @db.Text          /// 说话风格
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([bookId])
+  @@map("characters")
 }
 
 /// 作者灵魂档案

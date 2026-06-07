@@ -50,6 +50,8 @@ interface Props {
   userScore?: number;
   /** display name (nickname 或 username) */
   userDisplayName?: string;
+  /** ID of the selected character for dialog */
+  characterId?: number | null;
 }
 
 function getSessionId(bookTitle: string) {
@@ -247,7 +249,7 @@ function renderMarkdown(content: string, color: string): React.ReactNode {
 }
 // ──────────────────────────────────────────────────────────────────────────
 
-const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, guestMsgCount = 0, guestLimit = 3, onGuestLimitReached, onUserMessage, userScore, userDisplayName }) => {
+const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, guestMsgCount = 0, guestLimit = 3, onGuestLimitReached, onUserMessage, userScore, userDisplayName, characterId }) => {
   const [persona, setPersona] = useState<PersonaData | null>(null);
   const sc = book.soulColor;
   const sessionId = getSessionId(book.title);
@@ -393,6 +395,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
           bookTitle: book.title,
           sessionId,
           messages: history,
+          characterId,
         }),
         signal: controller.signal,
       });
@@ -705,7 +708,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
       const resp = await fetch('/api/h5/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookTitle: book.title, sessionId, messages: history }),
+        body: JSON.stringify({ bookTitle: book.title, sessionId, messages: history, characterId }),
         signal: controller.signal,
       });
       if (!resp.ok) throw new Error(`API 错误 ${resp.status}`);
