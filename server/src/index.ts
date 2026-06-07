@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -718,21 +719,27 @@ app.get('/api/h5/auth/sso-callback', async (req, res) => {
     if (tokenData.code !== 0) return res.redirect(`${CLIENT}/?sso_error=${encodeURIComponent(tokenData.message)}`);
 
     const ssoUser = tokenData.data;
+    const suggested = ssoUser.suggested_account;
     let localUser;
 
     // 1. 已有绑定
     if (ssoUser.binding?.local_user_id) {
       localUser = await prisma.user.findUnique({ where: { id: parseInt(ssoUser.binding.local_user_id) } });
     }
-    // 2. 按用户名匹配
-    if (!localUser && ssoUser.username) {
-      localUser = await prisma.user.findUnique({ where: { username: ssoUser.username } });
-    }
-    // 3. 创建新用户
+    // 2. 按用户名匹配（优先用 suggested_account 的用户名，其次 sso 中心的 username）
     if (!localUser) {
-      const uname = ssoUser.username || ssoUser.nickname || `sso_${ssoUser.sso_user_id}`;
-      const pwd = await bcrypt.hash(String(Math.random()) + Date.now(), 10);
-      localUser = await prisma.user.create({ data: { username: uname, password: pwd, nickname: ssoUser.nickname || uname, ssoUserId: ssoUser.sso_user_id } });
+      const matchName = suggested?.username || ssoUser.username;
+      if (matchName) {
+        localUser = await prisma.user.findUnique({ where: { username: matchName } });
+      }
+    }
+    // 3. 创建新用户 —— 使用盒子的真实账号信息，不再生成 sso_N 可预测账号
+    if (!localUser) {
+      const uname = suggested?.username || ssoUser.username || ssoUser.nickname || `sso_${crypto.randomBytes(16).toString('hex')}`;
+      const pwd = suggested?.password
+        ? await bcrypt.hash(suggested.password, 10)
+        : await bcrypt.hash(crypto.randomBytes(24).toString('base64url'), 10);
+      localUser = await prisma.user.create({ data: { username: uname, password: pwd, nickname: suggested?.nickname || ssoUser.nickname || uname, ssoUserId: ssoUser.sso_user_id } });
     }
 
     // 回写 ssoUserId
@@ -866,12 +873,18 @@ app.get(/^(?!\/api|\/admin).*/, (_req, res) => {
   res.sendFile(path.join(frontendDist, 'index.html'));
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`🚀 太虚书院后台服务已启动: http://localhost:${PORT}`);
-  console.log(`📋 管理后台: http://localhost:${PORT}/admin`);
-  console.log(`📚 书籍API: http://localhost:${PORT}/api/h5/books`);
-});
+// 导出 app 和 prisma 供测试使用
+export { app, prisma };
 
-// 优雅关闭，避免 ts-node-dev 重启时端口冲突
-process.on('SIGTERM', () => server.close());
-process.on('SIGINT', () => server.close());
+// 仅在非测试模式下启动服务器
+if (!process.env.VITEST) {
+  const server = app.listen(PORT, () => {
+    console.log(`🚀 太虚书院后台服务已启动: http://localhost:${PORT}`);
+    console.log(`📋 管理后台: http://localhost:${PORT}/admin`);
+    console.log(`📚 书籍API: http://localhost:${PORT}/api/h5/books`);
+  });
+
+  // 优雅关闭，避免 ts-node-dev 重启时端口冲突
+  process.on('SIGTERM', () => server.close());
+  process.on('SIGINT', () => server.close());
+}

@@ -868,6 +868,7 @@ export default function App() {
   const [nicknameEditing, setNicknameEditing] = useState(false);
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [browserToolbarHeight, setBrowserToolbarHeight] = useState(0);
 
   // ── 灵魂段位 ──
   const SOUL_RANKS = [
@@ -895,6 +896,23 @@ export default function App() {
   }
 
   const VISIBLE_SLOTS = 15;
+
+  // ── 第三方浏览器底部工具栏高度检测 ──
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const offset = window.innerHeight - vv.height - vv.offsetTop;
+      setBrowserToolbarHeight(Math.max(0, Math.round(offset)));
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    update();
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
 
   // ── 认证初始化 ──
   useEffect(() => {
@@ -1704,7 +1722,7 @@ export default function App() {
         const onDismissCard = focusedBook ? handleClearFocus : handleDismiss;
         return (
           <div style={{
-            position: 'fixed', bottom: '72px', left: '50%',
+            position: 'fixed', bottom: `calc(72px + ${browserToolbarHeight}px)`, left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 5000,
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
@@ -2463,20 +2481,20 @@ export default function App() {
       {/* ===== 底部 Tab 菜单 ===== */}
       <div style={{
         position: 'fixed',
-        bottom: 0,
+        bottom: `${browserToolbarHeight}px`,
         left: 0,
         right: 0,
         zIndex: 7000,
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        height: 'calc(60px + env(safe-area-inset-bottom))',
+        height: `calc(60px + env(safe-area-inset-bottom) + ${browserToolbarHeight}px)`,
         background: 'linear-gradient(180deg, rgba(4,10,28,0.0) 0%, rgba(8,16,40,0.75) 25%, rgba(6,12,32,0.92) 100%)',
         backdropFilter: 'blur(16px)',
         borderTop: '1px solid rgba(80,120,200,0.18)',
         boxShadow: '0 -4px 24px rgba(0,0,0,0.5)',
         fontFamily: '"KaiTi", "STKaiti", serif',
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingBottom: `calc(env(safe-area-inset-bottom) + ${browserToolbarHeight}px)`,
         alignItems: 'flex-start',
         paddingTop: '6px',
       }}>
@@ -2581,7 +2599,7 @@ export default function App() {
           onClick={() => setShowDean(true)}
           title="召唤院长"
           style={{
-            position: 'fixed', right: '18px', bottom: 'calc(60px + env(safe-area-inset-bottom) + 18px)', zIndex: 6500,
+            position: 'fixed', right: '18px', bottom: `calc(60px + env(safe-area-inset-bottom) + 18px + ${browserToolbarHeight}px)`, zIndex: 6500,
             width: '52px', height: '52px', borderRadius: '50%',
             background: 'linear-gradient(145deg, #c8a96e, #8a6830)',
             border: '1.5px solid rgba(200,169,110,0.6)',
