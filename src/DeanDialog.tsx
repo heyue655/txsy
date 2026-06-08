@@ -463,6 +463,7 @@ const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
               color: msg.role === 'dean' ? '#ddeeff' : 'rgba(195,210,240,0.85)',
               fontSize: '0.88rem', lineHeight: '1.8', letterSpacing: '0.5px',
               boxShadow: msg.role === 'dean' ? `0 2px 18px ${sc}18` : 'none',
+              textAlign: 'left',
             }}>
               {msg.isTyping && !msg.content ? (
                 <span style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
