@@ -1100,6 +1100,30 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
           cursor: 'pointer', color: 'rgba(200,220,255,0.55)', fontSize: '1.5rem',
           padding: '4px 10px', flexShrink: 0, lineHeight: 1,
         }}>‹</div>
+        {/* 角色面板图标 */}
+        {characters.length > 0 && (
+          <div
+            onClick={() => setShowCharacterPanel(p => !p)}
+            style={{
+              cursor: 'pointer', flexShrink: 0, position: 'relative',
+              color: showCharacterPanel ? sc : 'rgba(200,220,255,0.45)',
+              fontSize: '1.1rem', padding: '4px 6px', lineHeight: 1,
+              transition: 'color 0.2s',
+            }}
+            title="本书角色"
+          >
+            人
+            <span style={{
+              position: 'absolute', top: '0', right: '0',
+              background: sc, color: '#000613', borderRadius: '50%',
+              width: '14px', height: '14px', fontSize: '0.5rem', fontFamily: 'sans-serif',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 'bold',
+            }}>
+              {characters.length > 9 ? '9+' : characters.length}
+            </span>
+          </div>
+        )}
         <div style={{
           flex: 1, textAlign: 'center', color: sc, fontSize: '1rem',
           letterSpacing: '8px', textShadow: `0 0 14px ${sc}90`,
@@ -1109,6 +1133,82 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
           <div style={{ color: 'rgba(150,170,210,0.4)', fontSize: '0.6rem', letterSpacing: '1px', marginTop: '1px' }}>{book.era}</div>
         </div>
       </div>
+
+      {/* 角色面板关闭遮罩 */}
+      {showCharacterPanel && (
+        <div
+          onClick={() => setShowCharacterPanel(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 4 }}
+        />
+      )}
+
+      {/* 角色面板 */}
+      {showCharacterPanel && characters.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '56px', left: 0, right: 0,
+          background: 'rgba(2,6,22,0.97)', backdropFilter: 'blur(14px)',
+          borderBottom: `1px solid ${sc}25`, zIndex: 5,
+          maxHeight: '240px', overflowY: 'auto',
+          padding: '6px 14px 10px',
+          scrollbarWidth: 'thin', scrollbarColor: `${sc}30 transparent`,
+        }}>
+          <div style={{
+            color: 'rgba(150,170,210,0.45)', fontSize: '0.6rem',
+            letterSpacing: '2px', padding: '6px 0 8px',
+          }}>
+            本书角色 · {characters.length}位
+          </div>
+          {characters.map(c => (
+            <div key={c.id} style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '7px 0', borderBottom: `1px solid rgba(255,255,255,0.04)`,
+            }}>
+              {/* 名字 + 状态 */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ color: sc, fontSize: '0.85rem', letterSpacing: '1px' }}>{c.name}</span>
+                {c.status === 'pending' && (
+                  <span style={{ color: '#c8a96e', fontSize: '0.65rem', marginLeft: '5px' }}>✨</span>
+                )}
+                <span style={{
+                  color: 'rgba(150,170,210,0.4)', fontSize: '0.65rem', marginLeft: '8px',
+                }}>
+                  {c.status === 'pending' ? '未初始化' : (c.identity || '')}
+                </span>
+              </div>
+              {/* @ 召唤 */}
+              <div
+                onClick={() => {
+                  const ta = inputRef.current;
+                  const pos = ta ? (ta.selectionStart ?? input.length) : input.length;
+                  setInput(prev => prev.slice(0, pos) + `@${c.name}` + prev.slice(pos));
+                  setMentionedCharacter({ id: c.id, name: c.name, status: c.status });
+                  setShowCharacterPanel(false);
+                  setTimeout(() => inputRef.current?.focus(), 0);
+                }}
+                style={{
+                  flexShrink: 0, cursor: 'pointer', fontSize: '0.68rem',
+                  color: `${sc}cc`, border: `1px solid ${sc}35`,
+                  padding: '2px 8px', borderRadius: '10px',
+                  transition: 'all 0.2s',
+                }}
+              >@ 召唤</div>
+              {/* 独立对话 */}
+              <div
+                onClick={() => {
+                  setShowCharacterPanel(false);
+                  onOpenCharacterDialog?.(c.id, c.name);
+                }}
+                style={{
+                  flexShrink: 0, cursor: 'pointer', fontSize: '0.68rem',
+                  color: 'rgba(200,220,255,0.45)', border: '1px solid rgba(100,130,200,0.25)',
+                  padding: '2px 8px', borderRadius: '10px',
+                  transition: 'all 0.2s',
+                }}
+              >独立对话</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ===== 作者档案卡片 ===== */}
       {persona && showPersona && (
