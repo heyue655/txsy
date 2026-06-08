@@ -869,8 +869,8 @@ export default function App() {
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [showBrowserWarning, setShowBrowserWarning] = useState(false);
-  const [characters, setCharacters] = useState<any[]>([]);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
+  const [dialogCharacterId, setDialogCharacterId] = useState<number | null>(null);
+  const [dialogCharacterName, setDialogCharacterName] = useState<string | undefined>(undefined);
 
   // ── 灵魂段位 ──
   const SOUL_RANKS = [
@@ -1067,19 +1067,6 @@ export default function App() {
     [focusedBookId, booksData]
   );
 
-  // 获取角色列表
-  useEffect(() => {
-    if (focusedBook) {
-      fetch(`/api/h5/books/${focusedBook.id}/characters`)
-        .then(r => r.json())
-        .then(j => { if (j.code === 0) setCharacters(j.data || []); })
-        .catch(() => {});
-    } else {
-      setCharacters([]);
-      setSelectedCharacterId(null);
-    }
-  }, [focusedBook]);
-
   // 书籍加载后初始化可视槽位（错开 z 位置依次浮现）
   useEffect(() => {
     if (booksData.length === 0) return;
@@ -1175,6 +1162,8 @@ export default function App() {
     setSoulBook(null);
     setFocusedBookId(null);
     setPausedBookId(null);
+    setDialogCharacterId(null);
+    setDialogCharacterName(undefined);
   }, [focusedBook, soulBook]);
 
   const handleCloseSoul = useCallback(() => setSoulLoading(null), []);
@@ -1190,12 +1179,24 @@ export default function App() {
     setSoulDialog(null);
     setPausedBookId(null);
     setFocusedBookId(null);
+    setDialogCharacterId(null);
+    setDialogCharacterName(undefined);
   }, []);
 
-  const handleSelectFromList = useCallback((book: any) => {
+  const handleSelectFromList = useCallback((book: any, charId?: number | null, charName?: string) => {
+    setDialogCharacterId(charId ?? null);
+    setDialogCharacterName(charName);
     setSoulLoading(book);
     setActiveTab('explore');
   }, []);
+
+  const handleOpenCharacterDialog = useCallback((charId: number, charName: string) => {
+    const book = soulDialog; // 捕获当前书籍，soulDialog 即将关闭
+    setDialogCharacterId(charId);
+    setDialogCharacterName(charName);
+    setSoulDialog(null);
+    setSoulLoading(book); // 触发 SoulLoading → handleEnterDialog → 新 SoulDialog
+  }, [soulDialog]);
 
   const generateShareImage = useCallback(async (note: any) => {
     setShareGenerating(note.id);
@@ -1766,38 +1767,6 @@ export default function App() {
               letterSpacing: '2px', marginTop: '-4px',
             }}>{target.author} · {target.era}</div>
             
-            {/* 角色选择器 */}
-            {characters.length > 0 && (
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '90%' }}>
-                <div 
-                  onClick={() => setSelectedCharacterId(null)}
-                  style={{
-                    padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem',
-                    background: !selectedCharacterId ? 'rgba(200,169,110,0.3)' : 'rgba(255,255,255,0.08)',
-                    color: !selectedCharacterId ? '#c8a96e' : 'rgba(255,255,255,0.5)',
-                    cursor: 'pointer', border: '1px solid rgba(200,169,110,0.3)',
-                    transition: 'all 0.2s'
-                  }}
-                >作者</div>
-                {characters.map(c => (
-                  <div 
-                    key={c.id}
-                    onClick={() => setSelectedCharacterId(c.id)}
-                    style={{
-                      padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem',
-                      background: selectedCharacterId === c.id ? 'rgba(200,169,110,0.3)' : 'rgba(255,255,255,0.08)',
-                      color: selectedCharacterId === c.id ? '#c8a96e' : 'rgba(255,255,255,0.5)',
-                      cursor: 'pointer', border: '1px solid rgba(200,169,110,0.3)',
-                      transition: 'all 0.2s',
-                      opacity: c.status === 'initializing' ? 0.5 : 1
-                    }}
-                  >
-                    {c.name} {c.status === 'pending' && '✨'}
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* 按钮行 */}
             <div style={{ marginTop: '2px' }}>
               <div
@@ -1857,20 +1826,33 @@ export default function App() {
             }}>
               {chatSessions.map((s: any) => {
                 const isDean = s.sessionId === '__dean__' || s.sessionId.startsWith('__dean__');
+                // For character sessions, s.baseSessionId is the plain book title (e.g. "红楼梦")
+                const lookupId = s.baseSessionId || s.sessionId;
                 const bookData = !isDean && booksData.find(
-                  (b: any) => b.title.replace(/《|》/g, '') === s.sessionId || b.title === s.sessionId
+                  (b: any) => b.title.replace(/《|》/g, '') === lookupId || b.title === lookupId
                 );
                 const sc = isDean ? '#c8a96e' : (bookData?.soulColor || '#8ec8f8');
                 const author = isDean ? '' : (bookData?.author || '');
                 const era = isDean ? '' : (bookData?.era || '');
+                const charName: string | undefined = s.characterName || undefined;
+                // Strip any existing 《》 from bookData.title before re-wrapping
+                const bookDisplayTitle = (bookData?.title || lookupId).replace(/《|》/g, '');
+                // Title: 《书名》 or 《书名》· 角色名
+                const displayTitle = isDean
+                  ? '太虚书院 · 院长'
+                  : charName
+                    ? `《${bookDisplayTitle}》· ${charName}`
+                    : `《${bookDisplayTitle}》`;
+                // Avatar initial
+                const avatarInitial = isDean ? '📜' : (charName ? charName.slice(-1) : (author.slice(-1) || '☯'));
                 const lastTime = new Date(s.lastChatAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 return (
                   <div
                     key={s.sessionId}
                     onClick={() => {
                       if (isDean) { setShowDean(true); return; }
-                      const target = bookData || { id: s.sessionId, title: `《${s.sessionId}》`, author: s.sessionId, era: '', soulColor: '#8ec8f8' };
-                      handleSelectFromList(target);
+                      const target = bookData || { id: lookupId, title: `《${lookupId}》`, author: '', era: '', soulColor: sc };
+                      handleSelectFromList(target, s.characterId || null, charName);
                     }}
                     style={{
                       padding: '14px 16px', borderRadius: '12px',
@@ -1888,11 +1870,11 @@ export default function App() {
                       color: '#fffbe8', fontSize: '1rem',
                       boxShadow: `0 0 12px ${sc}30`,
                     }}>
-                      {isDean ? '📜' : (author.slice(-1) || '☯')}
+                      {avatarInitial}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ color: sc, fontSize: '0.95rem', letterSpacing: '2px', textShadow: `0 0 8px ${sc}40` }}>
-                        {isDean ? '太虚书院 · 院长' : `《${s.sessionId}》`}
+                        {displayTitle}
                       </div>
                       <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.35)', marginTop: '3px' }}>
                         {isDean ? `太虚书院守护者 · ${s.msgCount}条对话` : `${author}${era ? ` · ${era}` : ''} · ${s.msgCount}条对话`}
@@ -1974,13 +1956,13 @@ export default function App() {
                           onClick={() => generateShareImage(note)}
                           style={{
                             cursor: shareGenerating === note.id ? 'wait' : 'pointer',
-                            color: 'rgba(200,169,110,0.45)', fontSize: '0.7rem',
+                            color: 'rgba(200,169,110,0.85)', fontSize: '0.7rem',
                             padding: '2px 6px', borderRadius: '4px',
-                            border: '1px solid rgba(200,169,110,0.2)',
+                            border: '1px solid rgba(200,169,110,0.5)',
                             transition: 'all 0.2s',
                           }}
-                          onMouseEnter={e => { (e.currentTarget.style.color = 'rgba(200,169,110,0.9)'); (e.currentTarget.style.borderColor = 'rgba(200,169,110,0.5)'); }}
-                          onMouseLeave={e => { (e.currentTarget.style.color = 'rgba(200,169,110,0.45)'); (e.currentTarget.style.borderColor = 'rgba(200,169,110,0.2)'); }}
+                          onMouseEnter={e => { (e.currentTarget.style.color = '#c8a96e'); (e.currentTarget.style.borderColor = 'rgba(200,169,110,0.85)'); (e.currentTarget.style.background = 'rgba(200,169,110,0.12)'); }}
+                          onMouseLeave={e => { (e.currentTarget.style.color = 'rgba(200,169,110,0.85)'); (e.currentTarget.style.borderColor = 'rgba(200,169,110,0.5)'); (e.currentTarget.style.background = ''); }}
                           title="生成分享图"
                         >{shareGenerating === note.id ? '打开中…' : '分享'}</span>
                         <span
@@ -2607,23 +2589,25 @@ export default function App() {
         />
       )}
 
-      {/* 灵魂对弈界面 */}
-      {soulDialog && (
-        <SoulDialog
-          book={soulDialog}
-          onClose={handleCloseDialog}
-          userId={currentUserId}
-          guestId={authUser ? guestFingerprint : undefined}
-          isGuest={!authUser}
-          guestMsgCount={guestMsgCount}
-          guestLimit={guestLimit}
-          onGuestLimitReached={handleGuestLimitReached}
-          onUserMessage={handleGuestMessage}
-          userScore={profileStats?.totalScore}
-          userDisplayName={authUser ? (authUser.nickname || authUser.username) : undefined}
-          characterId={selectedCharacterId}
-        />
-      )}
+       {/* 灵魂对弈界面 */}
+       {soulDialog && (
+         <SoulDialog
+           book={soulDialog}
+           onClose={handleCloseDialog}
+           userId={currentUserId}
+           guestId={authUser ? guestFingerprint : undefined}
+           isGuest={!authUser}
+           guestMsgCount={guestMsgCount}
+           guestLimit={guestLimit}
+           onGuestLimitReached={handleGuestLimitReached}
+           onUserMessage={handleGuestMessage}
+           userScore={profileStats?.totalScore}
+           userDisplayName={authUser ? (authUser.nickname || authUser.username) : undefined}
+           characterId={dialogCharacterId}
+           characterName={dialogCharacterName}
+           onOpenCharacterDialog={handleOpenCharacterDialog}
+         />
+       )}
 
       {/* 院长对话界面 */}
       {showDean && <DeanDialog onClose={() => setShowDean(false)} userId={currentUserId ?? undefined} />}
@@ -2662,6 +2646,21 @@ export default function App() {
         @keyframes dean-pulse {
           0%, 100% { box-shadow: 0 0 20px rgba(200,169,110,0.45), 0 4px 16px rgba(0,0,0,0.5); }
           50% { box-shadow: 0 0 32px rgba(200,169,110,0.75), 0 4px 24px rgba(0,0,0,0.6), 0 0 0 6px rgba(200,169,110,0.12); }
+        }
+        /* 角色列表滚动条样式 */
+        .char-list-scroll::-webkit-scrollbar {
+          width: 4px;
+        }
+        .char-list-scroll::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.05);
+          border-radius: 2px;
+        }
+        .char-list-scroll::-webkit-scrollbar-thumb {
+          background: rgba(200,169,110,0.3);
+          border-radius: 2px;
+        }
+        .char-list-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(200,169,110,0.5);
         }
       `}</style>
 
