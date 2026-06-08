@@ -27,7 +27,6 @@ app.use('/admin', express.static(path.join(__dirname, '../admin')));
 app.use('/api/books', booksRouter);
 app.use('/api/llm', llmRouter);
 app.use('/api/persona', personaRouter);
-app.use('/api/h5', charactersRouter);
 
 // H5 前端接口：获取书籍列表（含 persona）
 app.get('/api/h5/books', async (_req, res) => {
@@ -95,7 +94,12 @@ async function generateCharacterPersona(bookTitle: string, charName: string) {
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('LLM 返回格式错误');
   
-  return JSON.parse(jsonMatch[0]);
+  const parsed = JSON.parse(jsonMatch[0]);
+  // Ensure coreViews is a string for Prisma Text field
+  if (Array.isArray(parsed.coreViews)) {
+    parsed.coreViews = JSON.stringify(parsed.coreViews);
+  }
+  return parsed;
 }
 
 // H5 前端接口：AI 对话代理 —— SSE 流式输出
@@ -105,7 +109,8 @@ app.post('/api/h5/chat', async (req, res) => {
     if (!config) {
       return res.status(400).json({ code: 1, message: '未配置大模型' });
     }
-    const { messages, bookId, bookTitle, sessionId, guestBookTitle, guestBookId, characterId } = req.body;
+    const { messages, bookId, bookTitle, sessionId, guestBookTitle, guestBookId,
+            characterId, mentionedCharacterId } = req.body;
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ code: 1, message: 'messages 参数缺失' });
     }
@@ -116,6 +121,27 @@ app.post('/api/h5/chat', async (req, res) => {
     let book: any = null;
     let mainBook: any = null; // 主线书籍（@提及时用于提供对话上下文）
     let activeCharacter: any = null; // 当前对话角色
+
+    // 处理 @提及本书角色（群聊模式）
+    let mentionedChar: any = null;
+    if (mentionedCharacterId && !characterId) {
+      const cId = parseInt(mentionedCharacterId);
+      if (!isNaN(cId)) {
+        let char = await prisma.character.findUnique({ where: { id: cId } });
+        if (char && char.status === 'pending') {
+          await prisma.character.update({ where: { id: cId }, data: { status: 'initializing' } });
+          try {
+            const persona = await generateCharacterPersona(bookTitle || char.name, char.name);
+            char = await prisma.character.update({ where: { id: cId }, data: { ...persona, status: 'ready' } });
+          } catch (e: any) {
+            console.error('Character @mention init failed:', e.message);
+            await prisma.character.update({ where: { id: cId }, data: { status: 'pending' } }).catch(() => {});
+            throw e;
+          }
+        }
+        mentionedChar = char;
+      }
+    }
 
     // 处理角色选择与延迟初始化
     if (characterId) {
@@ -131,7 +157,8 @@ app.post('/api/h5/chat', async (req, res) => {
               where: { id: cId },
               data: { ...persona, status: 'ready' }
             });
-          } catch (e) {
+          } catch (e: any) {
+            console.error('Character initialization failed:', e.message);
             // 初始化失败，回滚状态
             await prisma.character.update({ where: { id: cId }, data: { status: 'pending' } }).catch(() => {});
             throw e;
@@ -184,6 +211,21 @@ app.post('/api/h5/chat', async (req, res) => {
 - 始终以第一人称作为${activeCharacter.name}回答，保持身份和知识边界。
 - 与读者探讨书中的观点，或者向读者进一步解释。
 - 回答控制在20~500字以内。`;
+    } else if (mentionedChar) {
+      let coreViews: string[] = [];
+      try { coreViews = JSON.parse(mentionedChar.coreViews || '[]'); } catch { coreViews = []; }
+      systemPrompt = `你是${mentionedChar.name}，${mentionedChar.identity || '书中角色'}。
+你的灵魂档案如下：
+性格特征：${mentionedChar.personality || '未知'}
+核心观点：${coreViews.join('；')}
+知识边界：${mentionedChar.knowledgeLimits || '未知'}
+说话风格：${mentionedChar.speakingStyle || '未知'}
+
+你被读者在与《${bookTitle || '本书'}》的对话中@提及，正在以旁观者角度加入这场讨论。
+规则：
+- 始终以第一人称作为${mentionedChar.name}回答，保持角色身份。
+- 结合当前对话的语境发表你的观点或感受。
+- 回答控制在 20~300 字以内。`;
     }
     // 院长特殊处理
     else if (!book && (bookTitle === '__dean__' || sessionId === '__dean__')) {
@@ -435,10 +477,23 @@ app.get('/api/h5/chat-sessions', async (req, res) => {
       _max: { createdAt: true },
       orderBy: { _max: { createdAt: 'desc' } },
     });
-    const sessions = groups.map(g => ({
-      sessionId: g.sessionId,
-      lastChatAt: g._max.createdAt,
-      msgCount: g._count.id,
+    const sessions = await Promise.all(groups.map(async g => {
+      const charMatch = g.sessionId.match(/^(.+)_char_(\d+)$/);
+      let characterName: string | null = null;
+      let characterId: number | null = null;
+      if (charMatch) {
+        characterId = parseInt(charMatch[2]);
+        const char = await prisma.character.findUnique({ where: { id: characterId } });
+        characterName = char?.name || null;
+      }
+      return {
+        sessionId: g.sessionId,
+        baseSessionId: charMatch ? charMatch[1] : g.sessionId,
+        characterId,
+        characterName,
+        lastChatAt: g._max.createdAt,
+        msgCount: g._count.id,
+      };
     }));
     res.json({ code: 0, data: sessions });
   } catch (e: any) {
@@ -918,6 +973,9 @@ app.get('/api/h5/guest/count/:fingerprint', async (req, res) => {
     res.status(500).json({ code: 1, message: e.message });
   }
 });
+
+// 角色路由（放在最后，避免拦截其他 /api/h5/... 路由）
+app.use('/api/h5', charactersRouter);
 
 // 管理后台：查看/设置访客消息限制
 app.get('/api/guest/limit', async (_req, res) => {
