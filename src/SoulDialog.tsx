@@ -1380,12 +1380,17 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
                   marginBottom: '3px', textAlign: 'right', paddingRight: '2px',
                 }}>{userRank.icon} {userRank.title}</div>
               )}
-              {/* 访客作者标签 */}
+              {/* 访客作者 / 角色标签 */}
               {msg.guestAuthor && (
                 <div style={{
                   fontSize: '0.62rem', color: `${gc}99`, letterSpacing: '1px',
                   marginBottom: '4px', paddingLeft: '2px',
-                }}>{msg.guestAuthor.name} <span style={{ opacity: 0.5 }}>· 《{msg.guestAuthor.title}》</span></div>
+                }}>
+                  {msg.guestAuthor.name}
+                  {msg.guestAuthor.title && (
+                    <span style={{ opacity: 0.5 }}> · 《{msg.guestAuthor.title}》</span>
+                  )}
+                </div>
               )}
               <div style={{
                 padding: '11px 15px',
@@ -1631,28 +1636,54 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
               >✕</span>
             </div>
           )}
+          {/* @ 召唤角色标签 */}
+          {mentionedCharacter && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.68rem' }}>
+              <span style={{
+                background: 'rgba(200,169,110,0.15)', border: '1px solid rgba(200,169,110,0.4)',
+                borderRadius: '12px', padding: '2px 10px',
+                color: 'rgba(200,169,110,0.9)', letterSpacing: '1px',
+              }}>
+                📎 正在召唤 {mentionedCharacter.name}
+                {mentionedCharacter.status === 'pending' && <span style={{ opacity: 0.6 }}> · 将自动初始化</span>}
+              </span>
+              <span
+                onClick={() => {
+                  setMentionedCharacter(null);
+                  setInput(prev => prev.replace(new RegExp(`@${mentionedCharacter.name}\\s*`), ''));
+                }}
+                style={{ cursor: 'pointer', color: 'rgba(150,170,210,0.4)', fontSize: '0.7rem', padding: '2px 4px' }}
+              >✕</span>
+            </div>
+          )}
           <textarea
             ref={inputRef}
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={guestAuthor ? `向${guestAuthor.author}提问… (Enter 发送)` : `向${displayName}表达你的观点… (Enter 发送，Shift+Enter 换行)`}
+            placeholder={
+              guestAuthor ? `向${guestAuthor.author}提问… (Enter 发送)`
+              : mentionedCharacter ? `问${mentionedCharacter.name}… (Enter 发送，Shift+Enter 换行)`
+              : `向${displayName}表达你的观点… (Enter 发送，Shift+Enter 换行)`
+            }
             rows={2}
             style={{
               flex: 1, background: 'rgba(12,22,52,0.75)',
-              border: `1px solid ${guestAuthor ? guestAuthor.color + '55' : sc + '30'}`, borderRadius: '12px',
+              border: `1px solid ${guestAuthor ? guestAuthor.color + '55' : mentionedCharacter ? 'rgba(200,169,110,0.5)' : sc + '30'}`, borderRadius: '12px',
               padding: '10px 14px', color: '#c8deff',
               fontSize: '0.88rem', outline: 'none', resize: 'none',
-              lineHeight: '1.6', letterSpacing: '0.5px', caretColor: guestAuthor ? guestAuthor.color : sc,
+              lineHeight: '1.6', letterSpacing: '0.5px', caretColor: guestAuthor ? guestAuthor.color : mentionedCharacter ? '#c8a96e' : sc,
               fontFamily: '"KaiTi", "STKaiti", serif',
               transition: 'border-color 0.2s, box-shadow 0.2s',
             }}
             onFocus={e => {
-              e.target.style.borderColor = `${guestAuthor ? guestAuthor.color : sc}55`;
-              e.target.style.boxShadow = `0 0 14px ${guestAuthor ? guestAuthor.color : sc}20`;
+              const borderColor = guestAuthor ? guestAuthor.color : mentionedCharacter ? '#c8a96e' : sc;
+              e.target.style.borderColor = `${borderColor}55`;
+              e.target.style.boxShadow = `0 0 14px ${borderColor}20`;
             }}
             onBlur={e => {
-              e.target.style.borderColor = `${guestAuthor ? guestAuthor.color : sc}30`;
+              const borderColor = guestAuthor ? guestAuthor.color : mentionedCharacter ? '#c8a96e' : sc;
+              e.target.style.borderColor = `${borderColor}30`;
               e.target.style.boxShadow = 'none';
             }}
           />
