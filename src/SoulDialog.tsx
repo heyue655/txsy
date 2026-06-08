@@ -634,8 +634,8 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
-    // 如果已选定访客作者，不再触发 picker
-    if (guestAuthor) {
+    // 如果已选定访客作者或角色，不再触发 picker
+    if (guestAuthor || mentionedCharacter) {
       setShowAtPicker(false);
       setInput(val);
       return;
@@ -705,6 +705,15 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     // 插入作者名（而非书名）
     setInput(prev => prev.slice(0, pos) + `@${b.author}` + prev.slice(pos + 1 + atSearch.length));
     setGuestAuthor({ id: b.id, title: b.title, author: b.author, color: b.soulColor, isSoulArchive: b.isSoulArchive });
+    setShowAtPicker(false);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [atSearch]);
+
+  const selectCharacter = useCallback((c: { id: number; name: string; status: string }) => {
+    const pos = atStartPosRef.current;
+    if (pos < 0) return;
+    setInput(prev => prev.slice(0, pos) + `@${c.name}` + prev.slice(pos + 1 + atSearch.length));
+    setMentionedCharacter({ id: c.id, name: c.name, status: c.status });
     setShowAtPicker(false);
     setTimeout(() => inputRef.current?.focus(), 0);
   }, [atSearch]);
@@ -952,13 +961,20 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showAtPicker) {
-      const list = bookList.filter(b => !atSearch || b.title.includes(atSearch) || b.author.includes(atSearch)).slice(0, atSearch ? 20 : 5);
-      if (e.key === 'ArrowDown') { e.preventDefault(); setPickerIndex(i => Math.min(i + 1, list.length - 1)); return; }
+      const filteredChars = characters.filter(c => !atSearch || c.name.includes(atSearch)).slice(0, atSearch ? 20 : 5);
+      const filteredBooks = bookList.filter(b => !atSearch || b.title.includes(atSearch) || b.author.includes(atSearch)).slice(0, atSearch ? 20 : 5);
+      const totalLen = filteredChars.length + filteredBooks.length;
+      if (e.key === 'ArrowDown') { e.preventDefault(); setPickerIndex(i => Math.min(i + 1, totalLen - 1)); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setPickerIndex(i => Math.max(i - 1, 0)); return; }
       if (e.key === 'Escape') { e.preventDefault(); setShowAtPicker(false); return; }
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (list[pickerIndex]) { selectGuestBook(list[pickerIndex]); }
+        if (pickerIndex < filteredChars.length) {
+          selectCharacter(filteredChars[pickerIndex]);
+        } else {
+          const bookIdx = pickerIndex - filteredChars.length;
+          if (filteredBooks[bookIdx]) selectGuestBook(filteredBooks[bookIdx]);
+        }
         return;
       }
     }
@@ -1319,57 +1335,95 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
         position: 'relative',
         display: 'flex', gap: '10px', alignItems: 'flex-end',
       }}>
-        {/* @ 选书浮层 */}
-        {showAtPicker && (
-          <div style={{
-            position: 'absolute', bottom: '100%', left: '14px', right: '58px',
-            background: 'rgba(4,8,28,0.97)', border: `1px solid ${sc}30`,
-            borderRadius: '10px', zIndex: 10, overflow: 'hidden',
-            boxShadow: `0 -4px 24px rgba(0,0,0,0.5)`,
-            marginBottom: '4px',
-          }}>
+        {/* @ 选书/角色浮层 */}
+        {showAtPicker && (() => {
+          const filteredChars = characters.filter(c => !atSearch || c.name.includes(atSearch)).slice(0, atSearch ? 20 : 5);
+          const filteredBooks = bookList.filter(b => !atSearch || b.title.includes(atSearch) || b.author.includes(atSearch)).slice(0, atSearch ? 20 : 5);
+          const totalCount = filteredChars.length + filteredBooks.length;
+          return (
             <div style={{
-              padding: '7px 12px', fontSize: '0.62rem',
-              color: `${sc}66`, borderBottom: `1px solid ${sc}15`,
-              display: 'flex', justifyContent: 'space-between',
+              position: 'absolute', bottom: '100%', left: '14px', right: '58px',
+              background: 'rgba(4,8,28,0.97)', border: `1px solid ${sc}30`,
+              borderRadius: '10px', zIndex: 10, overflow: 'hidden',
+              boxShadow: `0 -4px 24px rgba(0,0,0,0.5)`, marginBottom: '4px',
             }}>
-              <span>@ 邀请另一位作者参与探讨</span>
-              <span style={{ opacity: 0.5 }}>↑↓ Enter Esc</span>
-            </div>
-            {pickerLoading && bookList.length === 0 ? (
-              <div style={{ padding: '14px', textAlign: 'center', color: `${sc}50`, fontSize: '0.7rem' }}>加载中…</div>
-            ) : (() => {
-              const list = bookList.filter(b => !atSearch || b.title.includes(atSearch) || b.author.includes(atSearch)).slice(0, atSearch ? 20 : 5);
-              return list.length === 0 ? (
+              {/* 标题行 */}
+              <div style={{ padding: '7px 12px', fontSize: '0.62rem', color: `${sc}66`, borderBottom: `1px solid ${sc}15`, display: 'flex', justifyContent: 'space-between' }}>
+                <span>@ 邀请作者或角色参与探讨</span>
+                <span style={{ opacity: 0.5 }}>↑↓ Enter Esc</span>
+              </div>
+
+              {/* 本书角色分组 */}
+              {filteredChars.length > 0 && (
+                <>
+                  <div style={{ padding: '5px 12px 2px', fontSize: '0.58rem', color: `${sc}55`, letterSpacing: '1px' }}>本书角色</div>
+                  {filteredChars.map((c, i) => (
+                    <div
+                      key={`char_${c.id}`}
+                      onClick={() => selectCharacter(c)}
+                      onMouseEnter={() => setPickerIndex(i)}
+                      style={{
+                        padding: '8px 14px', cursor: 'pointer',
+                        background: i === pickerIndex ? `${sc}18` : 'transparent',
+                        borderBottom: `1px solid ${sc}0d`,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        transition: 'background 0.15s',
+                      }}
+                    >
+                      <div>
+                        <span style={{ color: sc, fontSize: '0.8rem', letterSpacing: '1px' }}>{c.name}</span>
+                        {c.status === 'pending' && <span style={{ color: '#c8a96e', fontSize: '0.68rem', marginLeft: '4px' }}>✨</span>}
+                        <span style={{ color: 'rgba(160,185,230,0.45)', fontSize: '0.68rem', marginLeft: '8px' }}>
+                          {c.status === 'pending' ? '未初始化' : (c.identity || '')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* 其他书作者分组 */}
+              {(filteredBooks.length > 0 || pickerLoading) && (
+                <>
+                  {filteredChars.length > 0 && <div style={{ padding: '5px 12px 2px', fontSize: '0.58rem', color: 'rgba(160,185,230,0.4)', letterSpacing: '1px', borderTop: `1px solid ${sc}10` }}>其他书作者</div>}
+                  {pickerLoading && filteredBooks.length === 0 ? (
+                    <div style={{ padding: '14px', textAlign: 'center', color: `${sc}50`, fontSize: '0.7rem' }}>加载中…</div>
+                  ) : filteredBooks.map((b, i) => {
+                    const globalIdx = filteredChars.length + i;
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={() => selectGuestBook(b)}
+                        onMouseEnter={() => setPickerIndex(globalIdx)}
+                        style={{
+                          padding: '9px 14px', cursor: 'pointer',
+                          background: globalIdx === pickerIndex ? `${b.soulColor}18` : 'transparent',
+                          borderBottom: i < filteredBooks.length - 1 ? `1px solid ${sc}0d` : 'none',
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          transition: 'background 0.15s',
+                        }}
+                      >
+                        <div>
+                          {b.isSoulArchive
+                            ? <span style={{ color: b.soulColor, fontSize: '0.8rem', letterSpacing: '1px' }}>{b.author}</span>
+                            : <span style={{ color: b.soulColor, fontSize: '0.8rem', letterSpacing: '1px' }}>《{b.title}》</span>}
+                          <span style={{ color: 'rgba(160,185,230,0.5)', fontSize: '0.68rem', marginLeft: '8px' }}>{b.isSoulArchive ? '' : `${b.author} · `}{b.era}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              {/* 空状态 */}
+              {totalCount === 0 && !pickerLoading && (
                 <div style={{ padding: '14px', textAlign: 'center', color: 'rgba(150,170,210,0.3)', fontSize: '0.7rem' }}>
-                  {atSearch ? `未找到「${atSearch}」相关书籍` : '暂无其他灵魂档案'}
+                  {atSearch ? `未找到「${atSearch}」相关角色或书籍` : '暂无可邀请的角色或书籍'}
                 </div>
-              ) : list.map((b, i) => (
-                <div
-                  key={b.id}
-                  onClick={() => selectGuestBook(b)}
-                  onMouseEnter={() => setPickerIndex(i)}
-                  style={{
-                    padding: '9px 14px', cursor: 'pointer',
-                    background: i === pickerIndex ? `${b.soulColor}18` : 'transparent',
-                    borderBottom: i < list.length - 1 ? `1px solid ${sc}0d` : 'none',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    transition: 'background 0.15s',
-                  }}
-                >
-                  <div>
-                    {b.isSoulArchive ? (
-                      <span style={{ color: b.soulColor, fontSize: '0.8rem', letterSpacing: '1px' }}>{b.author}</span>
-                    ) : (
-                      <span style={{ color: b.soulColor, fontSize: '0.8rem', letterSpacing: '1px' }}>《{b.title}》</span>
-                    )}
-                    <span style={{ color: 'rgba(160,185,230,0.5)', fontSize: '0.68rem', marginLeft: '8px' }}>{b.isSoulArchive ? '' : `${b.author} · `}{b.era}</span>
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })()}
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {/* 访客作者标签 */}
