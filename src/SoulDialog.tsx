@@ -52,6 +52,10 @@ interface Props {
   userDisplayName?: string;
   /** ID of the selected character for dialog */
   characterId?: number | null;
+  /** Name of the selected character */
+  characterName?: string;
+  /** Callback to open an independent character dialog */
+  onOpenCharacterDialog?: (charId: number, charName: string) => void;
 }
 
 function getSessionId(bookTitle: string) {
@@ -249,10 +253,13 @@ function renderMarkdown(content: string, color: string): React.ReactNode {
 }
 // ──────────────────────────────────────────────────────────────────────────
 
-const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, guestMsgCount = 0, guestLimit = 3, onGuestLimitReached, onUserMessage, userScore, userDisplayName, characterId }) => {
+const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, guestMsgCount = 0, guestLimit = 3, onGuestLimitReached, onUserMessage, userScore, userDisplayName, characterId, characterName, onOpenCharacterDialog }) => {
   const [persona, setPersona] = useState<PersonaData | null>(null);
   const sc = book.soulColor;
-  const sessionId = getSessionId(book.title);
+  const sessionId = characterId
+    ? `${getSessionId(book.title)}_char_${characterId}`
+    : getSessionId(book.title);
+  const displayName = characterName || book.author;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -260,6 +267,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
   const [fadeIn, setFadeIn] = useState(false);
   const [showPersona, setShowPersona] = useState(true);
   const [error, setError] = useState('');
+  const [characterStatus, setCharacterStatus] = useState<string>(''); // pending, initializing, ready
 
   const [showNewChatWarn, setShowNewChatWarn] = useState(false);
   const [showRegenWarn, setShowRegenWarn] = useState(false);
@@ -288,6 +296,11 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
   const [pickerIndex, setPickerIndex] = useState(0);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [guestAuthor, setGuestAuthor] = useState<{ id: string; title: string; author: string; color: string; isSoulArchive?: boolean } | null>(null);
+  // 本书角色列表（用于面板和 @ picker）
+  const [characters, setCharacters] = useState<{ id: number; name: string; status: string; identity: string | null }[]>([]);
+  const [showCharacterPanel, setShowCharacterPanel] = useState(false);
+  // @ 提及本书角色（与 guestAuthor 互斥）
+  const [mentionedCharacter, setMentionedCharacter] = useState<{ id: number; name: string; status: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -299,19 +312,74 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
   const conversationIdRef = useRef<string>(generateConversationId());
   const isSendingRef = useRef(false);
 
+  // 当角色切换时，重置所有状态以重新加载
+  useEffect(() => {
+    setMessages([]);
+    setPersona(null);
+    setCharacterStatus('');
+    setError('');
+    setShowPersona(true);
+    setNoteGenerated(false);
+    setNoteToast('');
+    conversationIdRef.current = generateConversationId();
+    hasSavedOpeningRef.current = false;
+    initRef.current = false;
+    abortRef.current?.abort();
+    return () => { abortRef.current?.abort(); };
+  }, [characterId]);
+
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
     requestAnimationFrame(() => setFadeIn(true));
 
     (async () => {
-      const [p, historyResult] = await Promise.all([
-        fetchPersona(book.title),
-        loadChatHistory(sessionId, userId, guestId),
-      ]);
-      setPersona(p);
+      // 如果选择了角色，先检查角色状态
+      if (characterId) {
+        try {
+          const charRes = await fetch(`/api/h5/characters/${characterId}`);
+          const charJson = await charRes.json();
+          if (charJson.code === 0 && charJson.data) {
+            setCharacterStatus(charJson.data.status);
+            
+            // 如果角色未初始化，触发初始化
+            if (charJson.data.status === 'pending') {
+              // 发送一条空消息触发后端初始化逻辑
+              const initResp = await fetch('/api/h5/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  bookTitle: book.title,
+                  sessionId,
+                  messages: [{ role: 'user', content: '' }],
+                  characterId,
+                }),
+              });
+              
+              if (initResp.ok) {
+                // 初始化成功，更新状态
+                setCharacterStatus('ready');
+              } else {
+                const errBody = await initResp.json().catch(() => ({ message: '初始化失败' }));
+                setError(errBody.message || errBody.error || '初始化失败，请稍后重试');
+                setCharacterStatus('pending');
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch character status:', e);
+        }
+      }
+
+      // 如果选择了角色，不加载作者 persona（避免覆盖）
+      const p = characterName ? null : await fetchPersona(book.title);
+      const historyResult = await loadChatHistory(sessionId, userId, guestId);
       const { messages: history, conversationId: existingConvId } = historyResult;
+      
+      setPersona(p);
+      
       if (existingConvId) conversationIdRef.current = existingConvId;
+      
       if (history.length > 0) {
         setMessages(history);
         hasSavedOpeningRef.current = true;
@@ -354,9 +422,18 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
             }
           } catch {}
         }
+      } else if (characterName) {
+        // 角色模式且无历史：显示初始化完成提示
+        setMessages([{
+          id: `sys_init_${Date.now()}`,
+          role: 'author',
+          content: `灵魂档案已生成。我是${characterName}，请问有什么想与我探讨的？`,
+          isTyping: false
+        }]);
+        hasSavedOpeningRef.current = true;
       } else {
         // 支持多条开场白（用换行分隔），随机选一条
-        let opening = `你好，我是${book.author}。你有什么想与我探讨的话题？`;
+    let opening = `你好，我是${displayName}。你有什么想与我探讨的话题？`;
         if (p?.openingQuestion) {
           const lines = p.openingQuestion.split('\n').map((l: string) => l.trim()).filter(Boolean);
           if (lines.length > 0) {
@@ -367,7 +444,15 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
         // 不立即保存开场白，只有用户真正发言后才持久化
       }
     })();
-  }, []);
+  }, [characterId]);
+
+  // 加载本书角色列表（用于面板和 @ picker）
+  useEffect(() => {
+    fetch(`/api/h5/books/${book.id}/characters`)
+      .then(r => r.json())
+      .then(j => { if (j.code === 0) setCharacters(j.data || []); })
+      .catch(() => {});
+  }, [book.id]);
 
   useEffect(() => {
     return () => { abortRef.current?.abort(); };
@@ -690,7 +775,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     const prevQStr = prevQs.length > 0
       ? `请不要重复以下已提过的问题：\n${prevQs.map((q, i) => `${i + 1}. ${q.slice(0, 50)}`).join('\n')}`
       : '';
-    const trigger = `（你问我答指令：请以${book.author}的身份，结合《${book.title}》核心内容和我们刚才的交流，向我提出一个有深度的问题让我来思考和回答。要求：问题简洁有力，以问号结尾，不超过60字。${prevQStr}）`;
+    const trigger = `（你问我答指令：请以${displayName}的身份，结合《${book.title}》核心内容和我们刚才的交流，向我提出一个有深度的问题让我来思考和回答。要求：问题简洁有力，以问号结尾，不超过60字。${prevQStr}）`;
 
     const history = [...messages]
       .filter(m => !m.isTyping)
@@ -766,7 +851,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
       abortRef.current = null;
       setIsAskingQuestion(false);
     }
-  }, [isThinking, isAskingQuestion, messages, book.title, book.author, sessionId, userId]);
+  }, [isThinking, isAskingQuestion, messages, book.title, displayName, sessionId, userId]);
 
   const doGenerateNote = useCallback(async () => {
     setShowRegenWarn(false);
@@ -826,14 +911,14 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     setNoteToast('');
     setError('');
     const p = persona;
-    let opening = `你好，我是${book.author}。你有什么想与我探讨的话题？`;
+    let opening = `你好，我是${displayName}。你有什么想与我探讨的话题？`;
     if (p?.openingQuestion) {
       const lines = p.openingQuestion.split('\n').map((l: string) => l.trim()).filter(Boolean);
       if (lines.length > 0) opening = lines[Math.floor(Math.random() * lines.length)];
     }
     setMessages([{ id: `a_${Date.now()}`, role: 'author', content: opening, isTyping: false }]);
     setIsThinking(false);
-  }, [sessionId, persona, book.author]);
+  }, [sessionId, persona, displayName]);
 
   const handleNewChat = useCallback(() => {
     const userMsgs = messages.filter(m => m.role === 'user' && !m.isTyping);
@@ -883,7 +968,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     }
   };
 
-  const authorInitial = book.author.slice(-1);
+  const authorInitial = displayName.slice(-1);
 
   return (
     <div style={{
@@ -916,7 +1001,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
           letterSpacing: '8px', textShadow: `0 0 14px ${sc}90`,
         }}>灵魂对弈</div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ color: sc, fontSize: '0.88rem', letterSpacing: '2px' }}>{book.author}</div>
+          <div style={{ color: sc, fontSize: '0.88rem', letterSpacing: '2px' }}>{displayName}</div>
           <div style={{ color: 'rgba(150,170,210,0.4)', fontSize: '0.6rem', letterSpacing: '1px', marginTop: '1px' }}>{book.era}</div>
         </div>
       </div>
@@ -942,6 +1027,24 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
             cursor: 'pointer', color: 'rgba(150,170,210,0.3)', fontSize: '0.8rem',
             padding: '2px 4px',
           }}>✕</div>
+        </div>
+      )}
+
+      {/* ===== 角色初始化提示 ===== */}
+      {characterId && (characterStatus === 'pending' || characterStatus === 'initializing') && (
+        <div style={{
+          margin: '10px 14px', padding: '10px 14px', borderRadius: '12px',
+          background: 'rgba(200,169,110,0.1)', border: '1px solid rgba(200,169,110,0.3)',
+          color: '#c8a96e', fontSize: '0.78rem', letterSpacing: '1px',
+          display: 'flex', alignItems: 'center', gap: '10px',
+          flexShrink: 0,
+        }}>
+          <span style={{
+            display: 'inline-block', width: '14px', height: '14px',
+            border: '2px solid rgba(200,169,110,0.3)', borderTopColor: '#c8a96e',
+            borderRadius: '50%', animation: 'spin 1s linear infinite',
+          }} />
+          <span>灵魂档案生成中，请稍候...</span>
         </div>
       )}
 
@@ -1291,7 +1394,7 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={guestAuthor ? `向${guestAuthor.author}提问… (Enter 发送)` : `向${book.author}表达你的观点… (Enter 发送，Shift+Enter 换行)`}
+            placeholder={guestAuthor ? `向${guestAuthor.author}提问… (Enter 发送)` : `向${displayName}表达你的观点… (Enter 发送，Shift+Enter 换行)`}
             rows={2}
             style={{
               flex: 1, background: 'rgba(12,22,52,0.75)',
@@ -1480,6 +1583,10 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
         @keyframes thinking-dot {
           0%, 60%, 100% { transform: scale(1); opacity: 0.4; }
           30% { transform: scale(1.5); opacity: 1; }
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
       `}</style>
     </div>
