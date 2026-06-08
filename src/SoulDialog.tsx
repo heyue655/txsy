@@ -632,6 +632,84 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     }
   }, [book.title, sessionId, userId]);
 
+  const streamChatAsMentionedCharacter = useCallback(async (
+    charId: number,
+    charName: string,
+    history: { role: string; content: string }[],
+  ) => {
+    const msgId = `a_${Date.now()}_mc`;
+    const convId = conversationIdRef.current;
+    setMessages(prev => [...prev, {
+      id: msgId, role: 'author', content: '', isTyping: true,
+      guestAuthor: { name: charName, color: '#c8a96e', title: '' },
+    }]);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let full = '';
+
+    try {
+      const resp = await fetch('/api/h5/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookTitle: book.title,
+          sessionId,
+          messages: history,
+          mentionedCharacterId: charId,
+        }),
+        signal: controller.signal,
+      });
+      if (!resp.ok) throw new Error(`API 错误 ${resp.status}`);
+
+      const contentType = resp.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream')) {
+        const reader = resp.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const payload = trimmed.slice(5).trim();
+            if (payload === '[DONE]') continue;
+            try {
+              const json = JSON.parse(payload);
+              const delta = json.content || '';
+              if (delta) {
+                full += delta;
+                const captured = full;
+                setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: captured } : m));
+              }
+            } catch {}
+          }
+        }
+      } else {
+        const data = await resp.json();
+        if (data.code !== 0) throw new Error(data.message || '服务异常');
+        full = data.data?.choices?.[0]?.message?.content || '';
+      }
+
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, isTyping: false } : m));
+      if (full) {
+        saveMessage(sessionId, convId, 'guest', full, userId, { speakerName: charName });
+      }
+    } catch (e: any) {
+      if (e.name === 'AbortError') return;
+      setError(e.message || '角色链接中断');
+      setMessages(prev => prev.map(m => m.id === msgId
+        ? { ...m, content: '（角色链接中断，请稍后再试。）', isTyping: false, isError: true }
+        : m));
+    } finally {
+      abortRef.current = null;
+    }
+  }, [book.title, sessionId, userId]);
+
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     // 如果已选定访客作者或角色，不再触发 picker
@@ -734,6 +812,8 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
 
     const currentGuest = guestAuthor;
     setGuestAuthor(null);
+    const currentMentioned = mentionedCharacter;
+    setMentionedCharacter(null);
 
     const userMsg: Message = { id: `u_${Date.now()}`, role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
@@ -753,17 +833,23 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
     // 通知 App 捏不访客计数
     if (isGuest) onUserMessage?.();
 
-    // 构建历史，访客回复用其作者名标注
+    // 构建历史，访客/角色回复用其名标注
     const history = [...messages, userMsg]
       .filter(m => !m.isTyping)
       .map(m => ({
         role: m.role === 'author' ? 'assistant' : 'user',
-        content: m.guestAuthor ? `[《${m.guestAuthor.title}》·${m.guestAuthor.name}说] ${m.content}` : m.content,
+        content: m.guestAuthor
+          ? (m.guestAuthor.title
+            ? `[《${m.guestAuthor.title}》·${m.guestAuthor.name}说] ${m.content}`
+            : `[${m.guestAuthor.name}说] ${m.content}`)
+          : m.content,
       }));
 
     try {
       if (currentGuest) {
         await streamChatAsGuest(currentGuest.id, currentGuest.title, currentGuest.author, currentGuest.color, history);
+      } else if (currentMentioned) {
+        await streamChatAsMentionedCharacter(currentMentioned.id, currentMentioned.name, history);
       } else {
         await streamChat(history);
       }
@@ -773,7 +859,9 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
       setIsThinking(false);
       isSendingRef.current = false;
     }
-  }, [input, isThinking, messages, sessionId, streamChat, streamChatAsGuest, guestAuthor, userId, isGuest, guestMsgCount, guestLimit, onGuestLimitReached]);
+  }, [input, isThinking, messages, sessionId, streamChat, streamChatAsGuest,
+      streamChatAsMentionedCharacter, guestAuthor, mentionedCharacter,
+      userId, isGuest, guestMsgCount, guestLimit, onGuestLimitReached]);
 
   const askQuestion = useCallback(async () => {
     if (isThinking || isAskingQuestion) return;
