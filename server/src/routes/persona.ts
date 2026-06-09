@@ -160,7 +160,6 @@ ${book.description ? `简介：${book.description}` : ''}
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
         max_tokens: 2048,
-        enable_thinking: false,
       }),
     });
 
