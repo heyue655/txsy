@@ -186,7 +186,14 @@ ${book.description ? `简介：${book.description}` : ''}
     content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
     let persona: any;
-    try { persona = JSON.parse(content); }
+    try {
+      // モデルがJSONの前後に説明テキストを付けることがあるため、regex でJSON部分のみ抽出する
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error(`[灵魂档案] content 中未找到 JSON 对象，清理后内容:\n${content}`);
+        return res.status(500).json({ code: 1, message: '模型未返回JSON格式，请重试' });
+      }
+      persona = JSON.parse(jsonMatch[0]); }
     catch (e: any) {
       console.error(`[灵魂档案] content JSON.parse 失败 (${e.message})，清理后内容:\n${content}`);
       return res.status(500).json({ code: 1, message: '模型返回格式无法解析，请重试' });
