@@ -798,27 +798,29 @@ window.showCharactersModal = async function(bookId, bookTitle) {
   overlay.id = 'char-modal';
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal" style="width:660px;max-height:80vh;">
+    <div class="modal" style="width:min(820px,92vw);max-height:85vh;">
       <h3>👥 ${bookTitle} · 角色管理</h3>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <span style="color:var(--text2);font-size:13px;">共 ${chars.length} 个角色</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="color:var(--text2);font-size:13px;">共 ${chars.length} 个角色</span>
+          <span style="color:var(--border);">|</span>
+          <span style="font-size:13px;color:var(--text2);">角色对话</span>
+          <label class="switch" title="统一开启或关闭本书所有角色的对话功能">
+            <input type="checkbox" id="char-dialog-toggle" ${chars.length > 0 && chars.every(c => c.isActive !== false) ? 'checked' : ''}
+              onchange="toggleAllCharacters(${bookId}, '${bookTitle.replace(/'/g, "\\'")}', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
         <button class="btn btn-primary btn-sm" onclick="addCharacter(${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">+ 添加角色</button>
       </div>
       <table>
-        <tr><th>#</th><th>角色名</th><th>状态</th><th>身份设定</th><th>对话开关</th><th>操作</th></tr>
+        <tr><th>#</th><th>角色名</th><th>状态</th><th>身份设定</th><th>操作</th></tr>
         ${chars.length ? chars.map(ch => `
           <tr>
             <td>${ch.id}</td>
             <td><strong>${ch.name}</strong></td>
             <td>${statusBadge(ch.status)}</td>
-            <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);">${ch.identity || '—'}</td>
-            <td>
-              <label class="switch" title="${ch.isActive ? '已开启，点击关闭' : '已关闭，点击开启'}">
-                <input type="checkbox" ${ch.isActive !== false ? 'checked' : ''}
-                  onchange="toggleCharacter(${ch.id}, this.checked, ${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">
-                <span class="slider"></span>
-              </label>
-            </td>
+            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);">${ch.identity || '—'}</td>
             <td class="actions">
               <button class="btn btn-sm" style="background:var(--bg3);color:var(--gold);border:1px solid var(--border);"
                 onclick="regenerateCharacter(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', ${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">重置</button>
@@ -826,7 +828,7 @@ window.showCharactersModal = async function(bookId, bookTitle) {
                 onclick="deleteCharacter(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', ${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">删除</button>
             </td>
           </tr>
-        `).join('') : '<tr><td colspan="6" class="empty">暂无角色，点击「添加角色」</td></tr>'}
+        `).join('') : '<tr><td colspan="5" class="empty">暂无角色，点击「添加角色」</td></tr>'}
       </table>
       <div class="form-actions" style="margin-top:18px;">
         <button class="btn" onclick="document.getElementById('char-modal').remove()" style="background:var(--bg3);color:var(--text)">关闭</button>
@@ -868,10 +870,12 @@ window.regenerateCharacter = async function(charId, charName, bookId, bookTitle)
   showCharactersModal(bookId, bookTitle);
 };
 
-window.toggleCharacter = async function(charId, isActive, bookId, bookTitle) {
-  const res = await api(`/admin/characters/${charId}`, { method: 'PATCH', body: { isActive } });
-  if (res.code !== 0) { toast('操作失败: ' + res.message, 'error'); showCharactersModal(bookId, bookTitle); return; }
-  toast(isActive ? '角色对话已开启' : '角色对话已关闭');
+window.toggleAllCharacters = async function(bookId, bookTitle, isActive) {
+  const res = await api(`/admin/books/${bookId}/characters`);
+  const chars = res.data || [];
+  if (!chars.length) return;
+  await Promise.all(chars.map(c => api(`/admin/characters/${c.id}`, { method: 'PATCH', body: { isActive } })));
+  toast(isActive ? '本书角色对话已全部开启' : '本书角色对话已全部关闭');
 };
 
 // 启动
