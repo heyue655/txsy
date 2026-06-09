@@ -109,7 +109,8 @@ ${book.description ? `背景：${book.description}` : ''}
   "emotions": "喜好与厌恶（80字内）",
   "knowledgeLimits": "知识边界，以其所处时代为上限（60字内）",
   "speakingStyle": "语言特点和文风（60字内）",
-  "openingQuestion": "${openingDesc}"
+  "openingQuestion": "${openingDesc}",
+  "characters": []
 }
 
 注意：严格基于历史事实，不要虚构；只返回JSON，不要其他内容`
@@ -139,10 +140,11 @@ ${book.description ? `简介：${book.description}` : ''}
   "emotions": "情绪态度（80字内）",
   "knowledgeLimits": "知识边界，以其所处时代为上限（60字内）",
   "speakingStyle": "说话风格（60字内）",
-  "openingQuestion": "${openingDesc}"
+  "openingQuestion": "${openingDesc}",
+  "characters": ["书中核心人物名1", "人物名2", "人物名3"]
 }
 
-注意：严格基于历史事实和此书内容，不要虚构；只返回JSON，不要其他内容`;
+注意：严格基于历史事实和此书内容，不要虚构；characters 只列书中真实存在的核心人物（3~8个），哲学类无具体人物的书籍填空数组；只返回JSON，不要其他内容`;
 
     console.log(`\n${'='.repeat(60)}`);
     console.log(`[灵魂档案] 请求 LLM: endpoint=${config.endpoint} model=${config.model}`);
@@ -202,7 +204,25 @@ ${book.description ? `简介：${book.description}` : ''}
       return res.status(500).json({ code: 1, message: '模型返回格式无法解析，请重试' });
     }
 
-    res.json({ code: 0, data: persona });
+    // 提取 characters 字段，从 persona 中移除（不存入 authorPersona 表）
+    const characterNames: string[] = Array.isArray(persona.characters) ? persona.characters : [];
+    delete persona.characters;
+
+    // 自动创建书中人物（跳过已存在的）
+    let charactersCreated = 0;
+    for (const name of characterNames) {
+      if (!name || typeof name !== 'string' || !name.trim()) continue;
+      const existing = await prisma.character.findFirst({ where: { bookId, name: name.trim() } });
+      if (!existing) {
+        await prisma.character.create({ data: { bookId, name: name.trim(), status: 'pending' } });
+        charactersCreated++;
+      }
+    }
+    if (charactersCreated > 0) {
+      console.log(`[灵魂档案] 自动创建角色 ${charactersCreated} 个: ${characterNames.join('、')}`);
+    }
+
+    res.json({ code: 0, data: persona, charactersCreated, characterNames });
   } catch (e: any) {
     res.status(500).json({ code: 1, message: '生成失败: ' + e.message });
   }

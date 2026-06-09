@@ -341,7 +341,10 @@ window.showBookForm = async function(id) {
         document.getElementById('p-limits').value = d.knowledgeLimits || '';
         document.getElementById('p-style').value = d.speakingStyle || '';
         document.getElementById('p-opening').value = d.openingQuestion || '';
-        toast('✨ AI生成完成！请检查内容后保存', 'success');
+        const charMsg = res.charactersCreated > 0
+          ? `，已自动创建 ${res.charactersCreated} 个角色（${res.characterNames.join('、')}）`
+          : '';
+        toast(`✨ AI生成完成${charMsg}！请检查内容后保存`, 'success');
       } catch (e) {
         toast('❌ 生成失败: ' + e.message, 'error');
       } finally {
