@@ -8,6 +8,7 @@ import SoulLoading from './SoulLoading';
 import SoulDialog from './SoulDialog';
 import DeanDialog from './DeanDialog';
 import LoginModal from './LoginModal';
+import guanzhangImg from './assets/guanzhang.png';
 
 // 给 API 返回的书籍生成 3D 位置
 function generateBookPos(index: number): THREE.Vector3 {
@@ -2639,7 +2640,7 @@ export default function App() {
             overflow: 'hidden',
           }}
         >
-          <img src="/talk.png" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+          <img src={guanzhangImg} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
         </div>
       )}
 
