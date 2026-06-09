@@ -1190,9 +1190,9 @@ export default function App() {
     setActiveTab('explore');
   }, []);
 
-  const handleOpenCharacterDialog = useCallback((charId: number, charName: string) => {
+  const handleOpenCharacterDialog = useCallback((charId: number | null, charName?: string) => {
     const book = soulDialog; // 捕获当前书籍，soulDialog 即将关闭
-    setDialogCharacterId(charId);
+    setDialogCharacterId(charId ?? null);
     setDialogCharacterName(charName);
     setSoulDialog(null);
     setSoulLoading(book); // 触发 SoulLoading → handleEnterDialog → 新 SoulDialog
