@@ -84,6 +84,41 @@ describe('Admin Character Management APIs', () => {
     expect(res.body.code).toBe(1)
   })
 
+  // PATCH /api/admin/characters/:id (toggle isActive)
+  it('PATCH /api/admin/characters/:id 关闭角色对话开关', async () => {
+    const res = await request(app)
+      .patch(`/api/admin/characters/${testCharId}`)
+      .send({ isActive: false })
+      .expect(200)
+    expect(res.body.code).toBe(0)
+    expect(res.body.data).toHaveProperty('id', testCharId)
+  })
+
+  it('PATCH /api/admin/characters/:id 开启角色对话开关', async () => {
+    const res = await request(app)
+      .patch(`/api/admin/characters/${testCharId}`)
+      .send({ isActive: true })
+      .expect(200)
+    expect(res.body.code).toBe(0)
+    expect(res.body.data).toHaveProperty('id', testCharId)
+  })
+
+  it('PATCH /api/admin/characters/:id 非布尔值返回 400', async () => {
+    const res = await request(app)
+      .patch(`/api/admin/characters/${testCharId}`)
+      .send({ isActive: 'yes' })
+      .expect(400)
+    expect(res.body.code).toBe(1)
+  })
+
+  it('PATCH /api/admin/characters/:id 不存在返回 404', async () => {
+    const res = await request(app)
+      .patch('/api/admin/characters/99999999')
+      .send({ isActive: false })
+      .expect(404)
+    expect(res.body.code).toBe(1)
+  })
+
   // POST /api/admin/characters/:id/regenerate
   it('POST /api/admin/characters/:id/regenerate 重置角色状态', async () => {
     // Give the char a non-pending status + some fields first

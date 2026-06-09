@@ -78,7 +78,6 @@ td { color: var(--text); }
       <a data-page="llm"><span class="icon">🤖</span>大模型配置</a>
       <a data-page="souls"><span class="icon">👻</span>灵魂档案</a>
       <a data-page="dean"><span class="icon">📜</span>馆长配置</a>
-      <a data-page="characters"><span class="icon">👥</span>角色管理</a>
     </nav>
   </div>
   <div class="main" id="content"></div>
@@ -126,7 +125,6 @@ async function render() {
   else if (currentPage === 'llm') await renderLLM(c);
   else if (currentPage === 'souls') await renderSouls(c);
   else if (currentPage === 'dean') await renderDean(c);
-  else if (currentPage === 'characters') await renderCharacters(c);
 }
 
 // ---- Dashboard ----
@@ -231,6 +229,7 @@ window.renderBooksPage = function() {
           <td><span class="badge ${b.isActive ? 'badge-active' : 'badge-inactive'}">${b.isActive ? '启用' : '停用'}</span></td>
           <td class="actions">
             <button class="btn btn-primary btn-sm" onclick="showBookForm(${b.id})">编辑</button>
+            <button class="btn btn-sm" style="background:var(--bg3);color:var(--gold);border:1px solid var(--border);" onclick="showCharactersModal(${b.id}, '${b.title.replace(/'/g, "\\'")}')">角色管理</button>
             <button class="btn btn-danger btn-sm" onclick="deleteBook(${b.id})">删除</button>
           </td>
         </tr>
@@ -300,6 +299,14 @@ window.showBookForm = async function(id) {
       <div class="form-group"><label>知识边界</label><textarea id="p-limits" rows="2" placeholder="只聊道家思想，不知道现代科技…">${p?.knowledgeLimits || ''}</textarea></div>
       <div class="form-group"><label>说话风格</label><textarea id="p-style" rows="2" placeholder="文言文风格，多用'之乎者也'…">${p?.speakingStyle || ''}</textarea></div>
       <div class="form-group"><label>开场白（每行一条，随机选取）</label><textarea id="p-opening" rows="3" placeholder="第一条开场白…\n第二条开场白…\n第三条开场白…">${p?.openingQuestion || ''}</textarea></div>
+      </div>
+
+      <div style="border-bottom:1px solid var(--border);padding-bottom:4px;margin:18px 0 14px;font-size:12px;color:var(--gold);letter-spacing:2px;">
+        👥 可对话角色列表
+      </div>
+      <div class="form-group">
+        <label>角色名称 <span style="color:var(--text2);font-weight:400;">（每行一个，保存时自动创建不存在的角色）</span></label>
+        <textarea id="f-characters" rows="4" placeholder="例如：\n贾宝玉\n林黛玉\n薛宝钗">${book ? '（保存后从「角色管理」按钮查看和管理）' : ''}</textarea>
       </div>
 
       <div class="form-actions">
@@ -383,6 +390,16 @@ window.showBookForm = async function(id) {
         identity, personality, coreViews: views, knowledgeLimits, speakingStyle, openingQuestion,
         profession, socialStatus, logicWeapons, communicationStyle, catchphrases, emotions,
       }});
+    }
+
+    // 角色列表：解析 textarea，创建不存在的角色
+    const charsRaw = document.getElementById('f-characters').value;
+    if (bookId && charsRaw.trim() && !book) {
+      // 新建书籍时才批量创建角色（编辑时用「角色管理」按钮）
+      const names = charsRaw.split('\n').map(s => s.trim()).filter(s => s && s !== '（保存后从「角色管理」按钮查看和管理）');
+      for (const name of names) {
+        await api(`/admin/books/${bookId}/characters`, { method: 'POST', body: { name } });
+      }
     }
 
     toast(book ? '书籍已更新' : '书籍已添加');
@@ -771,68 +788,37 @@ window.saveDean = async function() {
   }
 };
 
-// ---- 角色管理 ----
-async function renderCharacters(c) {
-  const res = await api('/h5/books');
-  const books = (res.data || [])
-    .filter(b => { try { return !JSON.parse(b.categories || '[]').includes('灵魂档案'); } catch { return true; } })
-    .sort((a, b) => a.id - b.id);
-
-  // Fetch character counts for all books in parallel
-  const countMap = {};
-  await Promise.all(books.map(async b => {
-    try {
-      const r = await api(`/admin/books/${b.id}/characters`);
-      countMap[b.id] = (r.data || []).length;
-    } catch { countMap[b.id] = 0; }
-  }));
-
-  c.innerHTML = `
-    <h2>👥 角色管理</h2>
-    <p style="color:var(--text2);font-size:13px;margin-bottom:16px;">为每本书配置书中角色，角色首次被 @ 时将自动生成灵魂档案。</p>
-    <table>
-      <tr><th>#</th><th>书名</th><th>作者</th><th>年代</th><th>角色数</th><th>操作</th></tr>
-      ${books.length ? books.map(b => `
-        <tr>
-          <td>${b.id}</td>
-          <td><strong>${b.title}</strong></td>
-          <td>${b.author}</td>
-          <td>${b.era}</td>
-          <td><span style="color:var(--primary);font-weight:600;">${countMap[b.id] || 0}</span></td>
-          <td>
-            <button class="btn btn-primary btn-sm" onclick="showCharactersModal(${b.id}, '${b.title.replace(/'/g, "\\'")}')">管理角色</button>
-          </td>
-        </tr>
-      `).join('') : '<tr><td colspan="6" class="empty">暂无书籍</td></tr>'}
-    </table>
-  `;
-}
-
+// ---- 角色管理弹框（从书籍管理调用）----
 window.showCharactersModal = async function(bookId, bookTitle) {
   const res = await api(`/admin/books/${bookId}/characters`);
   const chars = res.data || [];
 
-  // Remove any existing modal first
   document.getElementById('char-modal')?.remove();
-
   const overlay = document.createElement('div');
   overlay.id = 'char-modal';
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal" style="width:620px;max-height:80vh;">
+    <div class="modal" style="width:660px;max-height:80vh;">
       <h3>👥 ${bookTitle} · 角色管理</h3>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <span style="color:var(--text2);font-size:13px;">共 ${chars.length} 个角色</span>
         <button class="btn btn-primary btn-sm" onclick="addCharacter(${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">+ 添加角色</button>
       </div>
       <table>
-        <tr><th>#</th><th>角色名</th><th>状态</th><th>身份设定</th><th>操作</th></tr>
+        <tr><th>#</th><th>角色名</th><th>状态</th><th>身份设定</th><th>对话开关</th><th>操作</th></tr>
         ${chars.length ? chars.map(ch => `
           <tr>
             <td>${ch.id}</td>
             <td><strong>${ch.name}</strong></td>
             <td>${statusBadge(ch.status)}</td>
-            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);">${ch.identity || '—'}</td>
+            <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);">${ch.identity || '—'}</td>
+            <td>
+              <label class="switch" title="${ch.isActive ? '已开启，点击关闭' : '已关闭，点击开启'}">
+                <input type="checkbox" ${ch.isActive !== false ? 'checked' : ''}
+                  onchange="toggleCharacter(${ch.id}, this.checked, ${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">
+                <span class="slider"></span>
+              </label>
+            </td>
             <td class="actions">
               <button class="btn btn-sm" style="background:var(--bg3);color:var(--gold);border:1px solid var(--border);"
                 onclick="regenerateCharacter(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', ${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">重置</button>
@@ -840,7 +826,7 @@ window.showCharactersModal = async function(bookId, bookTitle) {
                 onclick="deleteCharacter(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', ${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">删除</button>
             </td>
           </tr>
-        `).join('') : '<tr><td colspan="5" class="empty">暂无角色，点击「添加角色」</td></tr>'}
+        `).join('') : '<tr><td colspan="6" class="empty">暂无角色，点击「添加角色」</td></tr>'}
       </table>
       <div class="form-actions" style="margin-top:18px;">
         <button class="btn" onclick="document.getElementById('char-modal').remove()" style="background:var(--bg3);color:var(--text)">关闭</button>
@@ -880,6 +866,12 @@ window.regenerateCharacter = async function(charId, charName, bookId, bookTitle)
   if (res.code !== 0) { toast('重置失败: ' + res.message, 'error'); return; }
   toast(`角色「${charName}」已重置，下次 @ 时重新生成`);
   showCharactersModal(bookId, bookTitle);
+};
+
+window.toggleCharacter = async function(charId, isActive, bookId, bookTitle) {
+  const res = await api(`/admin/characters/${charId}`, { method: 'PATCH', body: { isActive } });
+  if (res.code !== 0) { toast('操作失败: ' + res.message, 'error'); showCharactersModal(bookId, bookTitle); return; }
+  toast(isActive ? '角色对话已开启' : '角色对话已关闭');
 };
 
 // 启动

@@ -10,11 +10,6 @@ router.get('/books/:id/characters', async (req, res) => {
     if (isNaN(bookId)) return res.status(400).json({ code: 1, message: '参数错误' })
     const characters = await prisma.character.findMany({
       where: { bookId },
-      select: {
-        id: true, name: true, status: true,
-        identity: true, personality: true, coreViews: true,
-        knowledgeLimits: true, speakingStyle: true,
-      },
       orderBy: { id: 'asc' },
     })
     res.json({ code: 0, data: characters })
@@ -54,8 +49,7 @@ router.delete('/characters/:id', async (req, res) => {
 })
 
 // POST /api/admin/characters/:id/regenerate
-router.post('/characters/:id/regenerate', async (req, res) => {
-  try {
+router.post('/characters/:id/regenerate', async (req, res) => {  try {
     const id = parseInt(req.params.id)
     if (isNaN(id)) return res.status(400).json({ code: 1, message: '参数错误' })
     const existing = await prisma.character.findUnique({ where: { id } })
@@ -70,6 +64,25 @@ router.post('/characters/:id/regenerate', async (req, res) => {
         knowledgeLimits: null,
         speakingStyle: null,
       },
+    })
+    res.json({ code: 0, data: character })
+  } catch (e: any) {
+    res.status(500).json({ code: 1, message: e.message })
+  }
+})
+
+// PATCH /api/admin/characters/:id  (toggle isActive)
+router.patch('/characters/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id)
+    if (isNaN(id)) return res.status(400).json({ code: 1, message: '参数错误' })
+    const { isActive } = req.body
+    if (typeof isActive !== 'boolean') return res.status(400).json({ code: 1, message: 'isActive 必须为布尔值' })
+    const existing = await prisma.character.findUnique({ where: { id } })
+    if (!existing) return res.status(404).json({ code: 1, message: '角色不存在' })
+    const character = await prisma.character.update({
+      where: { id },
+      data: { isActive } as any,
     })
     res.json({ code: 0, data: character })
   } catch (e: any) {

@@ -9,7 +9,7 @@ router.get('/books/:id/characters', async (req, res) => {
     if (isNaN(bookId)) return res.status(400).json({ code: 1, message: '参数错误' })
 
     const characters = await prisma.character.findMany({
-      where: { bookId },
+      where: { bookId, isActive: true } as any,
       select: { id: true, name: true, status: true, identity: true },
       orderBy: { id: 'asc' }
     })

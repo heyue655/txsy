@@ -34,6 +34,7 @@ model Character {
   bookId          Int
   name            String   @db.VarChar(50)   /// 角色名
   status          String   @db.VarChar(20) @default("pending") /// pending, initializing, ready
+  isActive        Boolean  @default(true)   /// 是否开启角色对话
   identity        String?  @db.Text          /// 身份设定
   personality     String?  @db.Text          /// 性格特征
   coreViews       String?  @db.Text          /// JSON array - 核心观点
