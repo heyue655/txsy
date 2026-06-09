@@ -144,7 +144,10 @@ ${book.description ? `简介：${book.description}` : ''}
 
 注意：严格基于历史事实和此书内容，不要虚构；只返回JSON，不要其他内容`;
 
+    console.log(`\n${'='.repeat(60)}`);
     console.log(`[灵魂档案] 请求 LLM: endpoint=${config.endpoint} model=${config.model}`);
+    console.log(`[灵魂档案] 发送给大模型的 Prompt:\n${prompt}`);
+    console.log(`${'='.repeat(60)}\n`);
 
     const response = await fetch(config.endpoint, {
       method: 'POST',
