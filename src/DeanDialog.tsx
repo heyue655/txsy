@@ -115,7 +115,7 @@ const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
         hasSavedOpeningRef.current = true;
       } else {
         const opening = deanData?.openingQuestion
-          || '太虚书院欢迎你。你今日踏入此院，所求何事？是想探讨某位先贤的思想，还是心中已有疑惑待解？';
+          || '太虚茶馆欢迎你。你今日踏入此院，所求何事？是想探讨某位先贤的思想，还是心中已有疑惑待解？';
         setMessages([{ id: `d_${Date.now()}`, role: 'dean', content: opening, isTyping: false }]);
       }
     })();
@@ -282,7 +282,7 @@ const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
         .slice(-12)
         .map((m: any) => `${m.role === 'user' ? '读者' : `${s.sessionId}（先贤）`}: ${m.content}`)
         .join('\n');
-      const context = `【以下是读者与《${s.sessionId}》的灵魂对话摘录，请院长参考分析】\n${excerpt || '（对话内容为空）'}\n【引用结束】`;
+      const context = `【以下是读者与《${s.sessionId}》的灵魂对话摘录，请馆长参考分析】\n${excerpt || '（对话内容为空）'}\n【引用结束】`;
       setQuotedRef({ sessionId: s.sessionId, context });
     } catch {
       setQuotedRef({ sessionId: s.sessionId, context: `【读者引用了与《${s.sessionId}》的灵魂对话（内容暂时无法加载）】` });
@@ -346,7 +346,7 @@ const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
           fontFamily: '"KaiTi", "STKaiti", serif',
           animation: 'summon-text 0.8s ease-in-out infinite alternate',
         }}>
-          召唤院长中…
+          召唤馆长中…
         </div>
         <style>{`
           @keyframes summon-ring {
@@ -397,14 +397,14 @@ const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
           letterSpacing: '8px', textShadow: `0 0 14px ${sc}90`,
         }}>太虚问道</div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ color: sc, fontSize: '0.88rem', letterSpacing: '2px' }}>{dean?.name || '太虚院长'}</div>
+          <div style={{ color: sc, fontSize: '0.88rem', letterSpacing: '2px' }}>{dean?.name || '太虚馆长'}</div>
           <div style={{ color: 'rgba(150,170,210,0.4)', fontSize: '0.6rem', letterSpacing: '1px', marginTop: '1px' }}>
-            {dean?.title || '太虚书院·院长'}
+            {dean?.title || '太虚茶馆·馆长'}
           </div>
         </div>
       </div>
 
-      {/* ===== 院长档案卡片 ===== */}
+      {/* ===== 馆长档案卡片 ===== */}
       {dean && showProfile && (
         <div style={{
           margin: '10px 14px 0', padding: '12px 14px',
@@ -414,7 +414,7 @@ const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
           lineHeight: '1.75', flexShrink: 0, position: 'relative',
         }}>
           <div style={{ color: sc, fontSize: '0.8rem', marginBottom: '6px', letterSpacing: '2px', textShadow: `0 0 8px ${sc}60` }}>
-            太虚书院 · 院长档案
+            太虚茶馆 · 馆长档案
           </div>
           <div style={{ marginBottom: '4px' }}>{dean.identity}</div>
           <div style={{ color: 'rgba(160,185,230,0.45)', fontSize: '0.68rem' }}>
@@ -590,7 +590,7 @@ const DeanDialog: React.FC<Props> = ({ onClose, userId }) => {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="向院长提问… 输入 @ 可引用灵魂对话 (Enter 发送)"
+            placeholder="向馆长提问… 输入 @ 可引用灵魂对话 (Enter 发送)"
             rows={2}
             style={{
               flex: 1, background: 'rgba(12,22,52,0.75)',

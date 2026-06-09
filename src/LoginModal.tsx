@@ -120,7 +120,7 @@ const LoginModal: React.FC<Props> = ({ onSuccess, onClose, isLimitReached }) => 
         {/* 标题 */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <div style={{ fontSize: '26px', color: goldColor, letterSpacing: '4px', textShadow: `0 0 12px ${goldColor}55` }}>
-            太虚书院
+            太虚茶馆
           </div>
           <div style={{ fontSize: '13px', color: 'rgba(200,169,110,0.4)', letterSpacing: '2px', marginTop: '4px' }}>
             登录以解锁完整修炼之旅
@@ -209,7 +209,7 @@ const LoginModal: React.FC<Props> = ({ onSuccess, onClose, isLimitReached }) => 
 
         {/* 装饰 */}
         <div style={{ textAlign: 'center', marginTop: '18px', color: 'rgba(200,169,110,0.18)', fontSize: '12px', letterSpacing: '2px' }}>
-          ※ 太虚书院 · 与古今先贤对话 ※
+          ※ 太虚茶馆 · 与古今先贤对话 ※
         </div>
       </div>
     </div>

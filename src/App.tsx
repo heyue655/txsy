@@ -874,7 +874,7 @@ export default function App() {
 
   // ── 灵魂段位 ──
   const SOUL_RANKS = [
-    { min: 0,     max: 20,    title: '初入书院',  label: '蒙昧之心',   color: '#8ba5c8', icon: '📖', desc: '刚踏入太虚书院，尚未领悟先贤之道' },
+    { min: 0,     max: 20,    title: '初入茶馆',  label: '蒙昧之心',   color: '#8ba5c8', icon: '📖', desc: '刚踏入太虚茶馆，尚未领悟先贤之道' },
     { min: 21,    max: 100,   title: '初窥门径',  label: '问道之心',   color: '#6dbfb8', icon: '🌿', desc: '开始与先贤对话，感受到思想的力量' },
     { min: 101,   max: 500,   title: '渐入佳境',  label: '求索之心',   color: '#7cb87f', icon: '🌱', desc: '思维逐渐开阔，能与先贤展开有深度的探讨' },
     { min: 501,   max: 1000,  title: '融会贯通',  label: '明澈之心',   color: '#c8a96e', icon: '✨', desc: '博览群书，初步领悟各家思想精髓' },
@@ -1208,7 +1208,7 @@ export default function App() {
       const realName = authUser ? (authUser.nickname || authUser.username) : '读者';
       const userTotalScore = profileStats?.totalScore ?? 0;
       const SHARE_RANKS = [
-        { min: 0,     max: 20,    title: '初入书院', color: '#8ba5c8', icon: '📖' },
+        { min: 0,     max: 20,    title: '初入茶馆', color: '#8ba5c8', icon: '📖' },
         { min: 21,    max: 100,   title: '初窥门径', color: '#6dbfb8', icon: '🌿' },
         { min: 101,   max: 500,   title: '渐入佳境', color: '#7cb87f', icon: '🌱' },
         { min: 501,   max: 1000,  title: '融会贯通', color: '#c8a96e', icon: '✨' },
@@ -1579,7 +1579,7 @@ export default function App() {
 
       ctx.font = '14px KaiTi, STKaiti, serif';
       ctx.fillStyle = 'rgba(200,169,110,0.28)';
-      ctx.fillText('── 太虚书院 ──', sloganX, footerTop + 158);
+      ctx.fillText('── 太虚茶馆 ──', sloganX, footerTop + 158);
 
       setShareImage({ dataUrl: canvas.toDataURL('image/png'), noteId: note.id });
     } finally {
@@ -1631,7 +1631,7 @@ export default function App() {
             fontFamily: "'Zhi Mang Xing', 'STXingKai', 'KaiTi', serif",
             fontSize: '2.4rem', margin: '0 0 6px 0', letterSpacing: '10px', color: '#f0f6ff',
             textShadow: '0 0 12px rgba(180,220,255,1), 0 0 30px rgba(100,170,255,0.7), 0 0 60px rgba(60,120,255,0.35), 2px 3px 0px rgba(0,0,0,0.9)',
-          }}>太虚书院</h1>
+          }}>太虚茶馆</h1>
           <p style={{ fontSize: '0.7rem', margin: 0, color: 'rgba(180,210,255,0.55)', textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
             单指转头 &nbsp;|&nbsp; 双指缩放 &nbsp;|&nbsp; 点击星球暂停
           </p>
@@ -1839,7 +1839,7 @@ export default function App() {
                 const bookDisplayTitle = (bookData?.title || lookupId).replace(/《|》/g, '');
                 // Title: 《书名》 or 《书名》· 角色名
                 const displayTitle = isDean
-                  ? '太虚书院 · 院长'
+                  ? '太虚茶馆 · 馆长'
                   : charName
                     ? `《${bookDisplayTitle}》· ${charName}`
                     : `《${bookDisplayTitle}》`;
@@ -1877,7 +1877,7 @@ export default function App() {
                         {displayTitle}
                       </div>
                       <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.35)', marginTop: '3px' }}>
-                        {isDean ? `太虚书院守护者 · ${s.msgCount}条对话` : `${author}${era ? ` · ${era}` : ''} · ${s.msgCount}条对话`}
+                        {isDean ? `太虚茶馆守护者 · ${s.msgCount}条对话` : `${author}${era ? ` · ${era}` : ''} · ${s.msgCount}条对话`}
                       </div>
                     </div>
                     <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.62rem', flexShrink: 0 }}>
@@ -2036,7 +2036,7 @@ export default function App() {
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                 <a
                   href={shareImage.dataUrl}
-                  download={`太虚书院-笔谈-${shareImage.noteId}.png`}
+                  download={`太虚茶馆-笔谈-${shareImage.noteId}.png`}
                   style={{
                     padding: '10px 28px', borderRadius: '24px',
                     background: 'linear-gradient(135deg, #c8a96ecc, #c8a96e88)',
@@ -2497,7 +2497,7 @@ export default function App() {
 
             {/* 页脚装饰 */}
             <div style={{ textAlign: 'center', color: 'rgba(200,169,110,0.15)', fontSize: '11px', letterSpacing: '2px', paddingBottom: '4px' }}>
-              ※ 太虚书院 · 与古今先贤对话 ※
+              ※ 太虚茶馆 · 与古今先贤对话 ※
             </div>
           </div>
         </div>
@@ -2609,7 +2609,7 @@ export default function App() {
          />
        )}
 
-      {/* 院长对话界面 */}
+      {/* 馆长对话界面 */}
       {showDean && <DeanDialog onClose={() => setShowDean(false)} userId={currentUserId ?? undefined} />}
 
       {/* ===== 登录/注册弹窗 ===== */}
@@ -2621,11 +2621,11 @@ export default function App() {
         />
       )}
 
-      {/* 召唤院长悬浮按钮 */}
+      {/* 召唤馆长悬浮按钮 */}
       {!soulLoading && !soulDialog && !showDean && (
         <div
           onClick={() => setShowDean(true)}
-          title="召唤院长"
+          title="召唤馆长"
           style={{
             position: 'fixed', right: '18px', bottom: 'calc(60px + env(safe-area-inset-bottom) + 18px)', zIndex: 6500,
             width: '52px', height: '52px', borderRadius: '50%',
@@ -2636,9 +2636,10 @@ export default function App() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '1.4rem',
             animation: 'dean-pulse 3s ease-in-out infinite',
+            overflow: 'hidden',
           }}
         >
-          📜
+          <img src="/talk.png" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
         </div>
       )}
 

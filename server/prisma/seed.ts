@@ -215,7 +215,7 @@ const PERSONAS_SEED: Record<string, {
 };
 
 async function main() {
-  console.log('🌱 开始播种太虚书院数据库...\n');
+  console.log('🌱 开始播种太虚茶馆数据库...\n');
 
   // 清空旧数据
   await prisma.authorPersona.deleteMany();

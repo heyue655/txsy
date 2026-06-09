@@ -158,11 +158,11 @@ model AppConfig {
   @@map("app_configs")
 }
 
-/// 院长配置
+/// 馆长配置
 model DeanConfig {
   id              Int    @id @default(autoincrement())
-  name            String @db.VarChar(50)  @default("太虚院长")
-  title           String @db.VarChar(100) @default("太虚书院·院长")
+  name            String @db.VarChar(50)  @default("太虚馆长")
+  title           String @db.VarChar(100) @default("太虚茶馆·馆长")
   identity        String @db.Text
   personality     String @db.Text
   coreViews       String @db.Text

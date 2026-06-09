@@ -68,7 +68,7 @@ async function generateCharacterPersona(bookTitle: string, charName: string) {
   const config = await prisma.lLMConfig.findFirst({ where: { isActive: true } });
   if (!config) throw new Error('未配置大模型');
 
-  const prompt = `你是太虚书院的角色档案生成助手。请根据书籍《${bookTitle}》和角色名"${charName}"，生成该角色的灵魂档案。
+  const prompt = `你是太虚茶馆的角色档案生成助手。请根据书籍《${bookTitle}》和角色名"${charName}"，生成该角色的灵魂档案。
 要求：
 1. 身份设定 (identity): 10-20字
 2. 性格特征 (personality): 20-50字
@@ -228,7 +228,7 @@ app.post('/api/h5/chat', async (req, res) => {
 - 结合当前对话的语境发表你的观点或感受。
 - 回答控制在 20~300 字以内。`;
     }
-    // 院长特殊处理
+    // 馆长特殊处理
     else if (!book && (bookTitle === '__dean__' || sessionId === '__dean__')) {
       let dean = await prisma.deanConfig.findFirst({ where: { isActive: true } });
       if (!dean) {
@@ -507,15 +507,15 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
-// ===================== 院长配置 =====================
+// ===================== 馆长配置 =====================
 const DEAN_DEFAULT = {
-  name: '太虚院长',
-  title: '太虚书院·院长',
-  identity: '太虚书院的守护者，贯通古今、融汇百家的学者，博览古典群籍，深谙各家思想精髓',
+  name: '太虚馆长',
+  title: '太虚茶馆·馆长',
+  identity: '太虚茶馆的守护者，贯通古今、融汇百家的学者，博览古典群籍，深谙各家思想精髓',
   personality: '温和睿智、博学多识，以苏格拉底式的引导见长，善于通过提问激发学生自己找到答案',
   coreViews: JSON.stringify(['博览群书，融会贯通', '学问在于探索，不在于记诵', '真正的智慧是知道自己的无知', '每本书都是一扇通向另一个心灵的窗']),
   speakingStyle: '温文尔雅，善于引经据典，以问代答，启发式教学，言辞从容而深邃',
-  openingQuestion: '太虚书院欢迎你。你今日踏入此院，所求何事？是想探讨某位先贤的思想，还是心中已有疑惑待解？',
+  openingQuestion: '太虚茶馆欢迎你。你今日踏入此院，所求何事？是想探讨某位先贤的思想，还是心中已有疑惑待解？',
   soulColor: '#c8a96e',
 };
 
@@ -615,7 +615,7 @@ app.post('/api/h5/notes/generate', async (req, res) => {
 - 涵盖其在本次对话中的核心观点、思想精华和主要论点`;
     const exampleContent = isCompact ? `（${contentMinLen}~${contentMaxLen}字的精炼观点总结）` : `（${contentMinLen}字以上的读者观点总结）`;
 
-    const prompt = `你是一位学识渊博的太虚书院笔谈总结助手。请根据以下对话内容，完成三个任务：
+    const prompt = `你是一位学识渊博的太虚茶馆笔谈总结助手。请根据以下对话内容，完成三个任务：
 
 【对话内容】
 ${dialogText}
@@ -1018,7 +1018,7 @@ export { app, prisma };
 // 仅在非测试模式下启动服务器
 if (!process.env.VITEST) {
   const server = app.listen(PORT, () => {
-    console.log(`🚀 太虚书院后台服务已启动: http://localhost:${PORT}`);
+    console.log(`🚀 太虚茶馆后台服务已启动: http://localhost:${PORT}`);
     console.log(`📋 管理后台: http://localhost:${PORT}/admin`);
     console.log(`📚 书籍API: http://localhost:${PORT}/api/h5/books`);
   });

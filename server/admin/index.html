@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>太虚书院 · 后台管理</title>
+<title>太虚茶馆 · 后台管理</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -71,13 +71,13 @@ td { color: var(--text); }
 <body>
 <div class="layout">
   <div class="sidebar">
-    <h1>🌌 太虚书院</h1>
+    <h1>🌌 太虚茶馆</h1>
     <nav>
       <a class="active" data-page="dashboard"><span class="icon">📊</span>数据概览</a>
       <a data-page="books"><span class="icon">📚</span>书籍管理</a>
       <a data-page="llm"><span class="icon">🤖</span>大模型配置</a>
       <a data-page="souls"><span class="icon">👻</span>灵魂档案</a>
-      <a data-page="dean"><span class="icon">📜</span>院长配置</a>
+      <a data-page="dean"><span class="icon">📜</span>馆长配置</a>
       <a data-page="characters"><span class="icon">👥</span>角色管理</a>
     </nav>
   </div>
@@ -689,22 +689,22 @@ window.deleteLLM = async function(id) {
   renderLLM(document.getElementById('content'));
 };
 
-// ---- 院长配置 ----
+// ---- 馆长配置 ----
 async function renderDean(c) {
   const res = await api('/dean');
   const dean = res.data || {};
   c.innerHTML = `
-    <h2>📜 院长配置</h2>
-    <p style="color:var(--text2);font-size:13px;margin-bottom:20px;">配置太虚院长的身份档案，影响召唤院长对话中的角色表现</p>
+    <h2>📜 馆长配置</h2>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:20px;">配置太虚馆长的身份档案，影响召唤馆长对话中的角色表现</p>
     <form id="dean-form" style="max-width:700px;">
       <div class="form-row">
         <div class="form-group">
-          <label>院长姓名</label>
-          <input id="d-name" value="${dean.name || '太虚院长'}" placeholder="太虚院长">
+          <label>馆长姓名</label>
+          <input id="d-name" value="${dean.name || '太虚馆长'}" placeholder="太虚馆长">
         </div>
         <div class="form-group">
           <label>头衔</label>
-          <input id="d-title" value="${dean.title || '太虚书院·院长'}" placeholder="太虚书院·院长">
+          <input id="d-title" value="${dean.title || '太虚茶馆·馆长'}" placeholder="太虚茶馆·馆长">
         </div>
       </div>
       <div class="form-row">
@@ -718,11 +718,11 @@ async function renderDean(c) {
       </div>
       <div class="form-group">
         <label>身份简介</label>
-        <textarea id="d-identity" rows="2" placeholder="院长的身份描述...">${dean.identity || ''}</textarea>
+        <textarea id="d-identity" rows="2" placeholder="馆长的身份描述...">${dean.identity || ''}</textarea>
       </div>
       <div class="form-group">
         <label>性格特征</label>
-        <textarea id="d-personality" rows="2" placeholder="院长的性格特征...">${dean.personality || ''}</textarea>
+        <textarea id="d-personality" rows="2" placeholder="馆长的性格特征...">${dean.personality || ''}</textarea>
       </div>
       <div class="form-group">
         <label>核心理念 <span style="color:var(--text2);font-size:11px;">（每行一条，JSON 数组形式）</span></label>
@@ -730,14 +730,14 @@ async function renderDean(c) {
       </div>
       <div class="form-group">
         <label>说话风格</label>
-        <textarea id="d-style" rows="2" placeholder="院长的说话风格...">${dean.speakingStyle || ''}</textarea>
+        <textarea id="d-style" rows="2" placeholder="馆长的说话风格...">${dean.speakingStyle || ''}</textarea>
       </div>
       <div class="form-group">
         <label>开场问句 <span style="color:var(--text2);font-size:11px;">（多个用换行分隔，每次随机选一条）</span></label>
-        <textarea id="d-opening" rows="3" placeholder="太虚书院欢迎你。你今日踏入此院，所求何事？">${dean.openingQuestion || ''}</textarea>
+        <textarea id="d-opening" rows="3" placeholder="太虚茶馆欢迎你。你今日踏入此院，所求何事？">${dean.openingQuestion || ''}</textarea>
       </div>
       <div class="form-actions" style="margin-top:20px;">
-        <button type="button" class="btn btn-primary" onclick="saveDean()">保存院长配置</button>
+        <button type="button" class="btn btn-primary" onclick="saveDean()">保存馆长配置</button>
       </div>
     </form>
   `;
@@ -765,7 +765,7 @@ window.saveDean = async function() {
   };
   const res = await api('/dean', { method: 'PUT', body: data });
   if (res.code === 0) {
-    toast('院长配置已保存 ✦');
+    toast('馆长配置已保存 ✦');
   } else {
     toast('保存失败: ' + res.message, 'error');
   }
