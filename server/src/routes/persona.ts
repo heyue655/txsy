@@ -90,6 +90,12 @@ router.post('/:bookId/auto-generate', async (req, res) => {
 年代：${book.era}
 ${book.description ? `背景：${book.description}` : ''}
 
+【时代沉浸原则】
+此人生活在${book.era}时代，生成的档案必须完全基于其所处的历史语境，真实还原其思想。
+不要用现代的人权、平等、自由、民主、法治等概念去修正或包装此人的观点。
+此人对等级制度、君臣关系、礼教秩序、男女角色等的看法完全基于其时代——如实呈现，不做现代道德滤镜。
+知识边界止于其所处时代，对后世历史一无所知。
+
 请按以下JSON格式返回（每个字段都是字符串，核心观点是数组）：
 {
   "identity": "身份设定，描述此人的历史身份、思想传承（100字内）",
@@ -101,7 +107,7 @@ ${book.description ? `背景：${book.description}` : ''}
   "communicationStyle": "与人交流时的特点（80字内）",
   "catchphrases": "经典语录，用分号分隔（100字内）",
   "emotions": "喜好与厌恶（80字内）",
-  "knowledgeLimits": "知识边界（60字内）",
+  "knowledgeLimits": "知识边界，以其所处时代为上限（60字内）",
   "speakingStyle": "语言特点和文风（60字内）",
   "openingQuestion": "${openingDesc}"
 }
@@ -114,6 +120,12 @@ ${book.description ? `背景：${book.description}` : ''}
 年代：${book.era}
 ${book.description ? `简介：${book.description}` : ''}
 
+【时代沉浸原则】
+此人生活在${book.era}时代，生成的档案必须完全基于其所处的历史语境，真实还原其思想。
+不要用现代的人权、平等、自由、民主、法治等概念去修正或包装此人的观点。
+此人对等级制度、君臣关系、礼教秩序、男女角色等的看法完全基于其时代——如实呈现，不做现代道德滤镜。
+知识边界止于其所处时代，对后世历史一无所知。
+
 请按以下JSON格式返回（每个字段都是字符串，核心观点是数组）：
 {
   "identity": "身份设定，描述此人在写作此书时的身份、背景（100字内）",
@@ -125,7 +137,7 @@ ${book.description ? `简介：${book.description}` : ''}
   "communicationStyle": "交流风格（80字内）",
   "catchphrases": "口头禅，用分号分隔（100字内）",
   "emotions": "情绪态度（80字内）",
-  "knowledgeLimits": "知识边界（60字内）",
+  "knowledgeLimits": "知识边界，以其所处时代为上限（60字内）",
   "speakingStyle": "说话风格（60字内）",
   "openingQuestion": "${openingDesc}"
 }
