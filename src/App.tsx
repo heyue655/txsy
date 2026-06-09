@@ -2629,18 +2629,17 @@ export default function App() {
           title="召唤馆长"
           style={{
             position: 'fixed', right: '18px', bottom: 'calc(60px + env(safe-area-inset-bottom) + 18px)', zIndex: 6500,
-            width: '52px', height: '52px', borderRadius: '50%',
+            width: '64px', height: '64px', borderRadius: '50%',
             background: 'linear-gradient(145deg, #c8a96e, #8a6830)',
-            border: '1.5px solid rgba(200,169,110,0.6)',
+            border: '2px solid rgba(200,169,110,0.6)',
             boxShadow: '0 0 20px rgba(200,169,110,0.45), 0 4px 16px rgba(0,0,0,0.5)',
             cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.4rem',
+            padding: 0,
             animation: 'dean-pulse 3s ease-in-out infinite',
             overflow: 'hidden',
           }}
         >
-          <img src={guanzhangImg} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+          <img src={guanzhangImg} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       )}
 
