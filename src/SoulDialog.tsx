@@ -1123,16 +1123,18 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
             cursor: characters.length > 0 ? 'pointer' : 'default',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end' }}>
             <div style={{ color: sc, fontSize: '0.88rem', letterSpacing: '2px' }}>{displayName}</div>
             {characters.length > 0 && (
               <span style={{
-                color: showSpeakerDropdown ? sc : `${sc}80`,
-                fontSize: '0.85rem', lineHeight: 1,
-                transition: 'color 0.2s',
-                display: 'inline-block', marginLeft: '2px',
-                fontStyle: 'normal',
-              }}>{showSpeakerDropdown ? '∧' : '∨'}</span>
+                display: 'inline-block',
+                width: '7px', height: '7px',
+                borderRight: `1.5px solid ${showSpeakerDropdown ? sc : `${sc}90`}`,
+                borderBottom: `1.5px solid ${showSpeakerDropdown ? sc : `${sc}90`}`,
+                transform: showSpeakerDropdown ? 'rotate(225deg) translateY(3px)' : 'rotate(45deg) translateY(-1px)',
+                transition: 'transform 0.2s, border-color 0.2s',
+                flexShrink: 0,
+              }} />
             )}
           </div>
           <div style={{ color: 'rgba(150,170,210,0.4)', fontSize: '0.6rem', letterSpacing: '1px', marginTop: '1px' }}>{book.era}</div>
