@@ -2629,7 +2629,7 @@ export default function App() {
           title="召唤馆长"
           style={{
             position: 'fixed', right: '18px', bottom: 'calc(60px + env(safe-area-inset-bottom) + 18px)', zIndex: 6500,
-            width: '80px', height: '80px', borderRadius: '50%',
+            width: '56px', height: '56px', borderRadius: '50%',
             background: 'linear-gradient(145deg, #c8a96e, #8a6830)',
             border: '2px solid rgba(200,169,110,0.6)',
             boxShadow: '0 0 20px rgba(200,169,110,0.45), 0 4px 16px rgba(0,0,0,0.5)',
