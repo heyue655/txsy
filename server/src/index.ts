@@ -99,6 +99,7 @@ async function generateCharacterPersona(bookTitle: string, charName: string) {
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: 1000,
+      enable_thinking: false,
     })
   });
   
@@ -356,6 +357,7 @@ ${guestBookTitle ? `你被读者@提及，正在参与一场关于${mainContext}
         temperature: config.temperature,
         max_tokens: config.maxTokens,
         stream: true,
+        enable_thinking: false,
       }),
     });
 
