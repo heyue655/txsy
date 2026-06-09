@@ -2639,7 +2639,7 @@ export default function App() {
             overflow: 'hidden',
           }}
         >
-          <img src={guanzhangImg} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={guanzhangImg} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%', transform: 'scale(1.8)', transformOrigin: 'center 20%' }} />
         </div>
       )}
 
