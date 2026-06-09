@@ -78,6 +78,7 @@ td { color: var(--text); }
       <a data-page="llm"><span class="icon">🤖</span>大模型配置</a>
       <a data-page="souls"><span class="icon">👻</span>灵魂档案</a>
       <a data-page="dean"><span class="icon">📜</span>院长配置</a>
+      <a data-page="characters"><span class="icon">👥</span>角色管理</a>
     </nav>
   </div>
   <div class="main" id="content"></div>
@@ -125,6 +126,7 @@ async function render() {
   else if (currentPage === 'llm') await renderLLM(c);
   else if (currentPage === 'souls') await renderSouls(c);
   else if (currentPage === 'dean') await renderDean(c);
+  else if (currentPage === 'characters') await renderCharacters(c);
 }
 
 // ---- Dashboard ----
@@ -767,6 +769,117 @@ window.saveDean = async function() {
   } else {
     toast('保存失败: ' + res.message, 'error');
   }
+};
+
+// ---- 角色管理 ----
+async function renderCharacters(c) {
+  const res = await api('/h5/books');
+  const books = (res.data || [])
+    .filter(b => { try { return !JSON.parse(b.categories || '[]').includes('灵魂档案'); } catch { return true; } })
+    .sort((a, b) => a.id - b.id);
+
+  // Fetch character counts for all books in parallel
+  const countMap = {};
+  await Promise.all(books.map(async b => {
+    try {
+      const r = await api(`/admin/books/${b.id}/characters`);
+      countMap[b.id] = (r.data || []).length;
+    } catch { countMap[b.id] = 0; }
+  }));
+
+  c.innerHTML = `
+    <h2>👥 角色管理</h2>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:16px;">为每本书配置书中角色，角色首次被 @ 时将自动生成灵魂档案。</p>
+    <table>
+      <tr><th>#</th><th>书名</th><th>作者</th><th>年代</th><th>角色数</th><th>操作</th></tr>
+      ${books.length ? books.map(b => `
+        <tr>
+          <td>${b.id}</td>
+          <td><strong>${b.title}</strong></td>
+          <td>${b.author}</td>
+          <td>${b.era}</td>
+          <td><span style="color:var(--primary);font-weight:600;">${countMap[b.id] || 0}</span></td>
+          <td>
+            <button class="btn btn-primary btn-sm" onclick="showCharactersModal(${b.id}, '${b.title.replace(/'/g, "\\'")}')">管理角色</button>
+          </td>
+        </tr>
+      `).join('') : '<tr><td colspan="6" class="empty">暂无书籍</td></tr>'}
+    </table>
+  `;
+}
+
+window.showCharactersModal = async function(bookId, bookTitle) {
+  const res = await api(`/admin/books/${bookId}/characters`);
+  const chars = res.data || [];
+
+  // Remove any existing modal first
+  document.getElementById('char-modal')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'char-modal';
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="width:620px;max-height:80vh;">
+      <h3>👥 ${bookTitle} · 角色管理</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span style="color:var(--text2);font-size:13px;">共 ${chars.length} 个角色</span>
+        <button class="btn btn-primary btn-sm" onclick="addCharacter(${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">+ 添加角色</button>
+      </div>
+      <table>
+        <tr><th>#</th><th>角色名</th><th>状态</th><th>身份设定</th><th>操作</th></tr>
+        ${chars.length ? chars.map(ch => `
+          <tr>
+            <td>${ch.id}</td>
+            <td><strong>${ch.name}</strong></td>
+            <td>${statusBadge(ch.status)}</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);">${ch.identity || '—'}</td>
+            <td class="actions">
+              <button class="btn btn-sm" style="background:var(--bg3);color:var(--gold);border:1px solid var(--border);"
+                onclick="regenerateCharacter(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', ${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">重置</button>
+              <button class="btn btn-danger btn-sm"
+                onclick="deleteCharacter(${ch.id}, '${ch.name.replace(/'/g, "\\'")}', ${bookId}, '${bookTitle.replace(/'/g, "\\'")}')">删除</button>
+            </td>
+          </tr>
+        `).join('') : '<tr><td colspan="5" class="empty">暂无角色，点击「添加角色」</td></tr>'}
+      </table>
+      <div class="form-actions" style="margin-top:18px;">
+        <button class="btn" onclick="document.getElementById('char-modal').remove()" style="background:var(--bg3);color:var(--text)">关闭</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+};
+
+function statusBadge(status) {
+  if (status === 'ready')        return '<span class="badge badge-active">✅ 就绪</span>';
+  if (status === 'initializing') return '<span class="badge" style="background:rgba(251,191,36,0.15);color:var(--gold);">⏳ 初始化中</span>';
+  return '<span class="badge badge-inactive">⚙️ 待初始化</span>';
+}
+
+window.addCharacter = async function(bookId, bookTitle) {
+  const name = prompt('请输入角色名（将在首次 @ 时自动生成灵魂档案）：');
+  if (!name?.trim()) return;
+  const res = await api(`/admin/books/${bookId}/characters`, { method: 'POST', body: { name: name.trim() } });
+  if (res.code !== 0) { toast('添加失败: ' + res.message, 'error'); return; }
+  toast(`角色「${name.trim()}」已添加`);
+  showCharactersModal(bookId, bookTitle);
+};
+
+window.deleteCharacter = async function(charId, charName, bookId, bookTitle) {
+  if (!confirm(`确定删除角色「${charName}」？此操作不可撤销。`)) return;
+  const res = await api(`/admin/characters/${charId}`, { method: 'DELETE' });
+  if (res.code !== 0) { toast('删除失败: ' + res.message, 'error'); return; }
+  toast(`角色「${charName}」已删除`);
+  showCharactersModal(bookId, bookTitle);
+};
+
+window.regenerateCharacter = async function(charId, charName, bookId, bookTitle) {
+  if (!confirm(`重置角色「${charName}」的灵魂档案？状态将变为"待初始化"，下次被 @ 时重新生成。`)) return;
+  const res = await api(`/admin/characters/${charId}/regenerate`, { method: 'POST' });
+  if (res.code !== 0) { toast('重置失败: ' + res.message, 'error'); return; }
+  toast(`角色「${charName}」已重置，下次 @ 时重新生成`);
+  showCharactersModal(bookId, bookTitle);
 };
 
 // 启动
