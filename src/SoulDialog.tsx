@@ -1127,12 +1127,12 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
             <div style={{ color: sc, fontSize: '0.88rem', letterSpacing: '2px' }}>{displayName}</div>
             {characters.length > 0 && (
               <span style={{
-                color: showSpeakerDropdown ? sc : `${sc}70`,
-                fontSize: '0.6rem', lineHeight: 1,
-                transition: 'transform 0.2s, color 0.2s',
-                display: 'inline-block',
-                transform: showSpeakerDropdown ? 'rotate(180deg)' : 'none',
-              }}>▾</span>
+                color: showSpeakerDropdown ? sc : `${sc}80`,
+                fontSize: '0.85rem', lineHeight: 1,
+                transition: 'color 0.2s',
+                display: 'inline-block', marginLeft: '2px',
+                fontStyle: 'normal',
+              }}>{showSpeakerDropdown ? '∧' : '∨'}</span>
             )}
           </div>
           <div style={{ color: 'rgba(150,170,210,0.4)', fontSize: '0.6rem', letterSpacing: '1px', marginTop: '1px' }}>{book.era}</div>
@@ -1153,8 +1153,9 @@ const SoulDialog: React.FC<Props> = ({ book, onClose, userId, guestId, isGuest, 
           position: 'absolute', top: '56px', right: '12px',
           background: 'rgba(2,6,22,0.97)', backdropFilter: 'blur(14px)',
           border: `1px solid ${sc}25`, borderRadius: '10px', zIndex: 5,
-          minWidth: '160px', overflow: 'hidden',
+          minWidth: '160px', maxHeight: '220px', overflowY: 'auto',
           boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+          scrollbarWidth: 'thin', scrollbarColor: `${sc}30 transparent`,
         }}>
           {/* 作者选项 */}
           <div
