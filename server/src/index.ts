@@ -8,6 +8,7 @@ import booksRouter from './routes/books';
 import llmRouter from './routes/llm';
 import personaRouter from './routes/persona';
 import charactersRouter from './routes/characters';
+import adminCharactersRouter from './routes/adminCharacters';
 import path from 'path';
 
 const prisma = new PrismaClient();
@@ -976,6 +977,7 @@ app.get('/api/h5/guest/count/:fingerprint', async (req, res) => {
 
 // 角色路由（放在最后，避免拦截其他 /api/h5/... 路由）
 app.use('/api/h5', charactersRouter);
+app.use('/api/admin', adminCharactersRouter);
 
 // 管理后台：查看/设置访客消息限制
 app.get('/api/guest/limit', async (_req, res) => {
