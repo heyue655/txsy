@@ -13,6 +13,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3003',
         changeOrigin: true,
+        timeout: 120000, // 2分钟，确保 persona auto-generate（大模型调用）有足够时间
       },
     },
   },
