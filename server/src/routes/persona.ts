@@ -151,78 +151,114 @@ ${book.description ? `简介：${book.description}` : ''}
     console.log(`[灵魂档案] 发送给大模型的 Prompt:\n${prompt}`);
     console.log(`${'='.repeat(60)}\n`);
 
-    const response = await fetch(config.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 2048,
-      }),
-    });
+    // 带超时和重试的 LLM 调用
+    const MAX_RETRIES = 2;
+    let lastError: string = '';
 
-    console.log(`[灵魂档案] LLM 响应状态: ${response.status} content-type: ${response.headers.get('content-type')}`);
-    const bodyText = await response.text();
-    if (!response.ok) {
-      console.error(`[灵魂档案] LLM 错误响应体:\n${bodyText.slice(0, 500)}`);
-      let errMsg = `LLM 错误 ${response.status}`;
-      try { errMsg = JSON.parse(bodyText).error?.message || errMsg; } catch {}
-      return res.status(500).json({ code: 1, message: errMsg });
-    }
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 90000); // 90s 超时
 
-    let data: any;
-    try { data = JSON.parse(bodyText); }
-    catch {
-      console.error(`[灵魂档案] LLM 响应非 JSON，完整内容:\n${bodyText}`);
-      return res.status(502).json({ code: 1, message: '大模型响应格式异常，请检查 LLM 配置是否正确' });
-    }
+        const response = await fetch(config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: config.model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7,
+            max_tokens: 2048,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
 
-    let content = data.choices?.[0]?.message?.content || '';
-    console.log(`[灵魂档案] LLM content 原始值:\n${content}`);
+        console.log(`[灵魂档案] LLM 响应状态: ${response.status} content-type: ${response.headers.get('content-type')}`);
+        const bodyText = await response.text();
 
-    // 清理 markdown 代码块
-    content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+        if (!response.ok) {
+          console.error(`[灵魂档案] LLM 错误响应体:\n${bodyText.slice(0, 500)}`);
+          lastError = `LLM 请求失败 (HTTP ${response.status})${attempt < MAX_RETRIES ? '，正在重试…' : ''}`;
+          if (response.status >= 500) continue; // 服务端错误可重试
+          // 4xx 错误不重试
+          return res.status(502).json({ code: 1, message: lastError });
+        }
 
-    // 有些模型可能包含 <think> 标签
-    content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        // 检测 HTML 响应（代理/CDN 错误页）
+        if (bodyText.trim().startsWith('<!') || bodyText.trim().startsWith('<html')) {
+          console.error(`[灵魂档案] LLM 返回了 HTML 而非 JSON，前 300 字符:\n${bodyText.slice(0, 300)}`);
+          lastError = '大模型接口返回异常页面（可能服务不可用），请稍后重试';
+          if (attempt < MAX_RETRIES) continue;
+          return res.status(502).json({ code: 1, message: lastError });
+        }
 
-    let persona: any;
-    try {
-      // モデルがJSONの前後に説明テキストを付けることがあるため、regex でJSON部分のみ抽出する
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error(`[灵魂档案] content 中未找到 JSON 对象，清理后内容:\n${content}`);
-        return res.status(500).json({ code: 1, message: '模型未返回JSON格式，请重试' });
+        let data: any;
+        try { data = JSON.parse(bodyText); }
+        catch {
+          console.error(`[灵魂档案] LLM 响应非 JSON，完整内容:\n${bodyText.slice(0, 500)}`);
+          return res.status(502).json({ code: 1, message: '大模型响应格式异常，请检查 LLM 配置是否正确' });
+        }
+
+        let content = data.choices?.[0]?.message?.content || '';
+        console.log(`[灵魂档案] LLM content 原始值:\n${content}`);
+
+        // 清理 markdown 代码块
+        content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+
+        // 有些模型可能包含 <think> 标签
+        content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+        let persona: any;
+        try {
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            console.error(`[灵魂档案] content 中未找到 JSON 对象，清理后内容:\n${content}`);
+            return res.status(500).json({ code: 1, message: '模型未返回JSON格式，请重试' });
+          }
+          persona = JSON.parse(jsonMatch[0]);
+        } catch (e: any) {
+          console.error(`[灵魂档案] content JSON.parse 失败 (${e.message})，清理后内容:\n${content}`);
+          return res.status(500).json({ code: 1, message: '模型返回格式无法解析，请重试' });
+        }
+
+        // 提取 characters 字段，从 persona 中移除（不存入 authorPersona 表）
+        const characterNames: string[] = Array.isArray(persona.characters) ? persona.characters : [];
+        delete persona.characters;
+
+        // 自动创建书中人物（跳过已存在的）
+        let charactersCreated = 0;
+        for (const name of characterNames) {
+          if (!name || typeof name !== 'string' || !name.trim()) continue;
+          const existing = await prisma.character.findFirst({ where: { bookId, name: name.trim() } });
+          if (!existing) {
+            await prisma.character.create({ data: { bookId, name: name.trim(), status: 'pending' } });
+            charactersCreated++;
+          }
+        }
+        if (charactersCreated > 0) {
+          console.log(`[灵魂档案] 自动创建角色 ${charactersCreated} 个: ${characterNames.join('、')}`);
+        }
+
+        return res.json({ code: 0, data: persona, charactersCreated, characterNames });
+      } catch (e: any) {
+        if (e.name === 'AbortError') {
+          lastError = '大模型请求超时（90秒），请检查网络或稍后重试';
+        } else {
+          lastError = e.message || '未知错误';
+        }
+        console.error(`[灵魂档案] 第 ${attempt + 1} 次尝试失败: ${lastError}`);
+        if (attempt >= MAX_RETRIES) {
+          return res.status(502).json({ code: 1, message: lastError });
+        }
+        // 重试前等待 1s
+        await new Promise(r => setTimeout(r, 1000));
       }
-      persona = JSON.parse(jsonMatch[0]); }
-    catch (e: any) {
-      console.error(`[灵魂档案] content JSON.parse 失败 (${e.message})，清理后内容:\n${content}`);
-      return res.status(500).json({ code: 1, message: '模型返回格式无法解析，请重试' });
     }
 
-    // 提取 characters 字段，从 persona 中移除（不存入 authorPersona 表）
-    const characterNames: string[] = Array.isArray(persona.characters) ? persona.characters : [];
-    delete persona.characters;
-
-    // 自动创建书中人物（跳过已存在的）
-    let charactersCreated = 0;
-    for (const name of characterNames) {
-      if (!name || typeof name !== 'string' || !name.trim()) continue;
-      const existing = await prisma.character.findFirst({ where: { bookId, name: name.trim() } });
-      if (!existing) {
-        await prisma.character.create({ data: { bookId, name: name.trim(), status: 'pending' } });
-        charactersCreated++;
-      }
-    }
-    if (charactersCreated > 0) {
-      console.log(`[灵魂档案] 自动创建角色 ${charactersCreated} 个: ${characterNames.join('、')}`);
-    }
-
-    res.json({ code: 0, data: persona, charactersCreated, characterNames });
+    return res.status(502).json({ code: 1, message: lastError || 'LLM 请求失败' });
   } catch (e: any) {
     res.status(500).json({ code: 1, message: '生成失败: ' + e.message });
   }

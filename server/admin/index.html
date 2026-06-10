@@ -114,7 +114,12 @@ async function api(path, opts = {}) {
     ...opts,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  return res.json();
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`服务器返回异常 (HTTP ${res.status})，请检查后端服务是否正常运行`);
+  }
 }
 
 // ---- 渲染入口 ----

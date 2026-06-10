@@ -21,6 +21,12 @@ const GUEST_LIMIT_DEFAULT = 3;
 app.use(cors());
 app.use(express.json());
 
+// 全局 JSON 错误处理 — 避免 Express 默认 HTML 错误页泄露到前端
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[Express] Uncaught error:', err.message);
+  res.status(500).json({ code: 1, message: err.message || '服务器内部错误' });
+});
+
 // 静态文件：admin 后台页面
 app.use('/admin', express.static(path.join(__dirname, '../admin')));
 
