@@ -235,7 +235,7 @@ app.post('/api/h5/chat', async (req, res) => {
 规则：
 - 始终以第一人称作为${activeCharacter.name}回答，保持身份和知识边界。
 - 与读者探讨书中的观点，或者向读者进一步解释。
-- 回答控制在20~500字以内。`;
+- 回答控制在20~200字以内。`;
     } else if (mentionedChar) {
       let coreViews: string[] = [];
       try { coreViews = JSON.parse(mentionedChar.coreViews || '[]'); } catch { coreViews = []; }
@@ -255,7 +255,7 @@ app.post('/api/h5/chat', async (req, res) => {
 规则：
 - 始终以第一人称作为${mentionedChar.name}回答，保持角色身份。
 - 结合当前对话的语境发表你的观点或感受。
-- 回答控制在 20~300 字以内。`;
+- 回答控制在 20~200 字以内。`;
     }
     // 馆长特殊处理
     else if (!book && (bookTitle === '__dean__' || sessionId === '__dean__')) {
@@ -331,7 +331,7 @@ ${guestBookTitle ? `你被读者@提及，正在参与一场关于${mainContext}
 你的知识边界止于你所处的时代，对后世发生的一切一无所知。
 
 你正在与一位现代读者进行"灵魂对弈"——一场跨越时空的思想交锋。
-请始终以第一人称作为${book.author}回答，回答控制在500字以内。`;
+请始终以第一人称作为${book.author}回答，回答控制在200字以内。`;
     }
 
     const fullMessages = [
