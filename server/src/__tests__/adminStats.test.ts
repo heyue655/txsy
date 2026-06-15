@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { app, prisma } from '../index';
 
-const TEST_PREFIX = 'test_vitest_adminstats_';
+const TEST_PREFIX = 'adminstats_vitest_';
 
 async function cleanupTestData() {
   await prisma.chatMessage.deleteMany({
