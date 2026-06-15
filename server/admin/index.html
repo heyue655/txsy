@@ -66,7 +66,13 @@ td { color: var(--text); }
 .toast-error { background: var(--danger); color: #fff; }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes spin { to { transform: rotate(360deg); } }
+.report-filter { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+.report-filter .btn-quick { padding:6px 14px; border:1px solid var(--border); border-radius:6px; background:var(--bg3); color:var(--text2); cursor:pointer; font-size:13px; transition:all 0.2s; }
+.report-filter .btn-quick.active, .report-filter .btn-quick:hover { background:var(--primary); border-color:var(--primary); color:#fff; }
+.report-filter input[type=date] { padding:6px 10px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:13px; outline:none; color-scheme:dark; }
+.chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:10px; margin-bottom:16px; padding:4px; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 </head>
 <body>
 <div class="layout">
@@ -74,6 +80,7 @@ td { color: var(--text); }
     <h1>🌌 太虚茶馆</h1>
     <nav>
       <a class="active" data-page="dashboard"><span class="icon">📊</span>数据概览</a>
+      <a data-page="reports"><span class="icon">📈</span>数据报表</a>
       <a data-page="books"><span class="icon">📚</span>书籍管理</a>
       <a data-page="llm"><span class="icon">🤖</span>大模型配置</a>
       <a data-page="souls"><span class="icon">👻</span>灵魂档案</a>
@@ -130,21 +137,43 @@ async function render() {
   else if (currentPage === 'llm') await renderLLM(c);
   else if (currentPage === 'souls') await renderSouls(c);
   else if (currentPage === 'dean') await renderDean(c);
+  else if (currentPage === 'reports') await renderReports(c);
 }
 
 // ---- Dashboard ----
 async function renderDashboard(c) {
-  const [booksRes, llmRes] = await Promise.all([api('/books'), api('/llm')]);
+  c.innerHTML = '<div class="empty" style="padding:60px 0;">⏳ 加载中…</div>';
+  const [booksRes, llmRes, statsRes] = await Promise.all([
+    api('/books'),
+    api('/llm'),
+    api('/admin/stats/dashboard'),
+  ]);
   booksCache = booksRes.data || [];
   llmCache = llmRes.data || [];
   const personaCount = booksCache.filter(b => b.persona).length;
   const activeLlm = llmCache.find(l => l.isActive);
+  const stats = statsRes.data || {};
+
   c.innerHTML = `
     <h2>📊 数据概览</h2>
     <div class="stats">
       <div class="stat-card"><div class="num">${booksCache.length}</div><div class="label">书籍总数</div></div>
       <div class="stat-card"><div class="num">${personaCount} / ${booksCache.length}</div><div class="label">灵魂已配置</div></div>
-      <div class="stat-card"><div class="num">${activeLlm ? '✅ 已启用' : '❌ 未配置'}</div><div class="label">大模型状态</div></div>
+      <div class="stat-card"><div class="num" style="font-size:18px;">${activeLlm ? '✅ 已启用' : '❌ 未配置'}</div><div class="label">大模型状态</div></div>
+    </div>
+    <div class="stats" style="margin-top:0;">
+      <div class="stat-card" style="border-color:rgba(59,130,246,0.35);">
+        <div class="num" style="color:#60a5fa;">${stats.totalUsers ?? '—'}</div>
+        <div class="label">累计注册用户</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(34,197,94,0.35);">
+        <div class="num" style="color:#4ade80;">+${stats.todayNewUsers ?? 0}</div>
+        <div class="label">今日新增用户</div>
+      </div>
+      <div class="stat-card" style="border-color:rgba(251,191,36,0.35);">
+        <div class="num" style="color:var(--gold);">${stats.todayActiveUsers ?? '—'}</div>
+        <div class="label">今日活跃用户</div>
+      </div>
     </div>
     <h2 style="font-size:16px;margin-top:20px;">📚 最近书籍</h2>
     <table>
@@ -885,6 +914,169 @@ window.toggleAllCharacters = async function(bookId, bookTitle, isActive) {
   await Promise.all(chars.map(c => api(`/admin/characters/${c.id}`, { method: 'PATCH', body: { isActive } })));
   toast(isActive ? '本书角色对话已全部开启' : '本书角色对话已全部关闭');
 };
+
+// ---- 数据报表 ----
+let _reportCharts = [];
+
+function _disposeReportCharts() {
+  _reportCharts.forEach(c => { try { c.dispose(); } catch {} });
+  _reportCharts = [];
+}
+
+async function renderReports(c) {
+  _disposeReportCharts();
+  c.innerHTML = `
+    <h2>📈 数据报表</h2>
+    <div class="report-filter">
+      <button class="btn-quick active" onclick="switchReportDays(this, 7)">近7天</button>
+      <button class="btn-quick" onclick="switchReportDays(this, 30)">近30天</button>
+      <button class="btn-quick" onclick="switchReportDays(this, 90)">近90天</button>
+      <span style="color:var(--text2);font-size:13px;margin-left:8px;">自定义：</span>
+      <input type="date" id="r-start">
+      <span style="color:var(--text2);">~</span>
+      <input type="date" id="r-end">
+      <button class="btn btn-primary btn-sm" onclick="queryCustomReport()">查询</button>
+    </div>
+    <div id="report-loading" style="display:none;text-align:center;padding:40px;color:var(--text2);">⏳ 加载中…</div>
+    <div id="report-charts">
+      <div class="chart-card"><div id="chart-newusers" style="height:280px;"></div></div>
+      <div class="chart-card"><div id="chart-activeusers" style="height:280px;"></div></div>
+      <div class="chart-card"><div id="chart-messages" style="height:280px;"></div></div>
+    </div>
+  `;
+
+  // 自定义日期默认值
+  const today = new Date();
+  const weekAgo = new Date(today);
+  weekAgo.setDate(today.getDate() - 6);
+  const fmt = d => d.toISOString().slice(0, 10);
+  document.getElementById('r-start').value = fmt(weekAgo);
+  document.getElementById('r-end').value = fmt(today);
+
+  await _loadReportData({ days: 7 });
+}
+
+window.switchReportDays = async function(btn, days) {
+  document.querySelectorAll('.report-filter .btn-quick').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  await _loadReportData({ days });
+};
+
+window.queryCustomReport = async function() {
+  const startDate = document.getElementById('r-start')?.value;
+  const endDate = document.getElementById('r-end')?.value;
+  if (!startDate || !endDate) { toast('请选择起止日期', 'error'); return; }
+  if (startDate > endDate) { toast('起始日期不能晚于结束日期', 'error'); return; }
+  document.querySelectorAll('.report-filter .btn-quick').forEach(b => b.classList.remove('active'));
+  await _loadReportData({ startDate, endDate });
+};
+
+async function _loadReportData({ days, startDate, endDate }) {
+  const loading = document.getElementById('report-loading');
+  const charts = document.getElementById('report-charts');
+  if (loading) loading.style.display = 'block';
+  if (charts) charts.style.opacity = '0.3';
+
+  let url = '/admin/stats/report';
+  if (startDate && endDate) {
+    url += `?startDate=${startDate}&endDate=${endDate}`;
+  } else {
+    url += `?days=${days || 30}`;
+  }
+
+  let res;
+  try {
+    res = await api(url);
+  } catch (e) {
+    toast('加载报表失败: ' + e.message, 'error');
+    if (loading) loading.style.display = 'none';
+    if (charts) charts.style.opacity = '1';
+    return;
+  }
+
+  if (loading) loading.style.display = 'none';
+  if (charts) charts.style.opacity = '1';
+
+  if (res.code !== 0) { toast('加载报表失败: ' + res.message, 'error'); return; }
+
+  const { dates, newUsers, activeUsers, messages } = res.data;
+  _disposeReportCharts();
+
+  const rotateX = dates.length > 30 ? 45 : 0;
+
+  const baseOpt = (title, color) => ({
+    backgroundColor: 'transparent',
+    title: { text: title, textStyle: { color: '#e5e7eb', fontSize: 14, fontWeight: 500 }, left: 16, top: 10 },
+    grid: { left: 52, right: 20, top: 50, bottom: rotateX ? 55 : 36 },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLabel: { color: '#9ca3af', fontSize: 11, rotate: rotateX, interval: dates.length > 60 ? 'auto' : 0 },
+      axisLine: { lineStyle: { color: '#374151' } },
+      axisTick: { lineStyle: { color: '#374151' } },
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLabel: { color: '#9ca3af', fontSize: 11 },
+      splitLine: { lineStyle: { color: '#1f2937', type: 'dashed' } },
+    },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: '#1f2937',
+      borderColor: '#374151',
+      textStyle: { color: '#e5e7eb', fontSize: 13 },
+    },
+  });
+
+  const makeLineChart = (domId, title, data, color, seriesName) => {
+    const el = document.getElementById(domId);
+    if (!el || typeof echarts === 'undefined') return;
+    const ch = echarts.init(el);
+    ch.setOption({
+      ...baseOpt(title, color),
+      series: [{
+        name: seriesName,
+        type: 'line',
+        data,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 5,
+        itemStyle: { color },
+        lineStyle: { color, width: 2 },
+        areaStyle: {
+          color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [{ offset: 0, color: color + '55' }, { offset: 1, color: color + '05' }] }
+        },
+      }],
+    });
+    _reportCharts.push(ch);
+  };
+
+  const makeBarChart = (domId, title, data, color, seriesName) => {
+    const el = document.getElementById(domId);
+    if (!el || typeof echarts === 'undefined') return;
+    const ch = echarts.init(el);
+    ch.setOption({
+      ...baseOpt(title, color),
+      series: [{
+        name: seriesName,
+        type: 'bar',
+        data,
+        itemStyle: { color, borderRadius: [3, 3, 0, 0] },
+        barMaxWidth: 32,
+      }],
+    });
+    _reportCharts.push(ch);
+  };
+
+  makeLineChart('chart-newusers',   '每日新增用户数', newUsers,     '#3b82f6', '新增用户');
+  makeLineChart('chart-activeusers','每日活跃用户数', activeUsers,  '#22c55e', '活跃用户');
+  makeBarChart ('chart-messages',   '每日对话次数',  messages,     '#fbbf24', '对话次数');
+
+  // 响应式
+  window.addEventListener('resize', () => _reportCharts.forEach(c => c.resize()));
+}
 
 // 启动
 render();
