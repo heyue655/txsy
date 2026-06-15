@@ -806,6 +806,18 @@ app.get('/api/h5/notes/check/:sessionId', async (req, res) => {
 
 // ===================== 用户认证 =====================
 
+/** 从请求头中提取客户端真实 IP，兼容 Nginx / CDN 反向代理 */
+function getClientIp(req: import('express').Request): string | null {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    return first.split(',')[0].trim();
+  }
+  const realIp = req.headers['x-real-ip'];
+  if (realIp) return Array.isArray(realIp) ? realIp[0] : realIp;
+  return req.socket.remoteAddress ?? null;
+}
+
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';
   let code = '';
@@ -833,7 +845,8 @@ app.post('/api/h5/auth/register', async (req, res) => {
     }
     // handle invite tracking: if caller supplies an inviterCode
     const { inviterCode, fingerprint: regFingerprint } = req.body;
-    const user = await prisma.user.create({ data: { username, password: hash, nickname: nickname || null, inviteCode } });
+    const registrationIp = getClientIp(req);
+    const user = await prisma.user.create({ data: { username, password: hash, nickname: nickname || null, inviteCode, registrationIp } });
     if (inviterCode) {
       // Try to update the existing visit record (fingerprint match), otherwise create a new one
       const existingVisit = regFingerprint

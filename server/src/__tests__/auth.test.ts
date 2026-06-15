@@ -47,6 +47,19 @@ describe('POST /api/h5/auth/register', () => {
     expect(res.body.data.user.inviteCode).toHaveLength(8)
   })
 
+  it('注册时写入 registrationIp 字段', async () => {
+    const username = `${TEST_PREFIX}ipuser`
+    const res = await request(app)
+      .post('/api/h5/auth/register')
+      .send({ username, password: 'pass1234' })
+      .expect(200)
+
+    expect(res.body.code).toBe(0)
+    // IP 不对外暴露，直接查库验证
+    const user = await prisma.user.findUnique({ where: { username } })
+    expect(user?.registrationIp).toBeTruthy()
+  })
+
   it('注册时携带昵称', async () => {
     const res = await request(app)
       .post('/api/h5/auth/register')

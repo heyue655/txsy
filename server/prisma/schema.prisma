@@ -126,14 +126,15 @@ model NoteEntry {
 
 /// 注册用户
 model User {
-  id         Int      @id @default(autoincrement())
-  username   String   @unique @db.VarChar(50)
-  password   String   @db.VarChar(100)   /// bcrypt hash
-  nickname   String?  @db.VarChar(50)
-  inviteCode String?  @unique @db.VarChar(16)  /// 专属邀请码（注册时自动生成）
-  ssoUserId  Int?     @map("sso_user_id")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  username       String   @unique @db.VarChar(50)
+  password       String   @db.VarChar(100)   /// bcrypt hash
+  nickname       String?  @db.VarChar(50)
+  inviteCode     String?  @unique @db.VarChar(16)  /// 专属邀请码（注册时自动生成）
+  ssoUserId      Int?     @map("sso_user_id")
+  registrationIp String?  @db.VarChar(45)    /// 注册时的客户端 IP（IPv4/IPv6，仅记录不拦截）
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@map("users")
 }
